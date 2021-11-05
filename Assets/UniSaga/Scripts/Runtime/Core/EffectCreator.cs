@@ -1,0 +1,343 @@
+// Copyright @2021 COMCREATE. All rights reserved.
+
+using System;
+using Cysharp.Threading.Tasks;
+using JetBrains.Annotations;
+
+namespace UniSaga.Core
+{
+    internal static class CallEffectCreator<TReturnData>
+    {
+        public static CallEffect Create(
+            [NotNull] Func<object[], UniTask<TReturnData>> function,
+            [NotNull] object[] args,
+            [CanBeNull] ReturnData<TReturnData> returnData
+        )
+        {
+            if (function == null) throw new InvalidOperationException();
+            Action<object> setResultValue = null;
+            if (returnData != null)
+            {
+                setResultValue = obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                };
+            }
+
+            return new CallEffect(new CallEffect.CallEffectDescriptor(
+                async p => await function(p),
+                args,
+                setResultValue
+            ));
+        }
+
+        public static CallEffect Create(
+            [NotNull] Func<UniTask<TReturnData>> function,
+            [CanBeNull] ReturnData<TReturnData> returnData)
+        {
+            Action<object> setResultValue = null;
+            if (returnData != null)
+            {
+                setResultValue = obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                };
+            }
+
+            return new CallEffect(new CallEffect.CallEffectDescriptor(
+                async p => await function(),
+                Array.Empty<object>(),
+                setResultValue
+            ));
+        }
+
+        public static CallEffect Create<TArgument>(
+            [NotNull] Func<TArgument, UniTask<TReturnData>> function,
+            [CanBeNull] TArgument arg,
+            [CanBeNull] ReturnData<TReturnData> returnData
+        )
+        {
+            Action<object> setResultValue = null;
+            if (returnData != null)
+            {
+                setResultValue = obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                };
+            }
+
+            return new CallEffect(new CallEffect.CallEffectDescriptor(
+                async p => await function((TArgument)p[0]),
+                new[] { (object)arg },
+                setResultValue
+            ));
+        }
+
+        public static CallEffect Create<TArgument1, TArgument2>(
+            [NotNull] Func<TArgument1, TArgument2, UniTask<TReturnData>> function,
+            [CanBeNull] TArgument1 arg1, [CanBeNull] TArgument2 arg2,
+            [CanBeNull] ReturnData<TReturnData> returnData
+        )
+        {
+            Action<object> setResultValue = null;
+            if (returnData != null)
+            {
+                setResultValue = obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                };
+            }
+
+            return new CallEffect(new CallEffect.CallEffectDescriptor(
+                async p => await function(
+                    (TArgument1)p[0],
+                    (TArgument2)p[1]
+                ), new[]
+                {
+                    (object)arg1,
+                    arg2
+                },
+                setResultValue)
+            );
+        }
+
+        public static CallEffect Create<TArgument1, TArgument2, TArgument3>(
+            [NotNull] Func<TArgument1, TArgument2, TArgument3, UniTask<TReturnData>> function,
+            [CanBeNull] TArgument1 arg1, [CanBeNull] TArgument2 arg2, [CanBeNull] TArgument3 arg3,
+            [CanBeNull] ReturnData<TReturnData> returnData
+        )
+        {
+            Action<object> setResultValue = null;
+            if (returnData != null)
+            {
+                setResultValue = obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                };
+            }
+
+            return new CallEffect(new CallEffect.CallEffectDescriptor(
+                async p => await function(
+                    (TArgument1)p[0],
+                    (TArgument2)p[1],
+                    (TArgument3)p[2]
+                ), new[]
+                {
+                    (object)arg1,
+                    arg2,
+                    arg3
+                },
+                setResultValue)
+            );
+        }
+    }
+
+    internal static class SelectEffectCreator<TState, TReturnData>
+    {
+        public static SelectEffect Create(
+            [NotNull] Func<TState, TReturnData> selector,
+            [NotNull] ReturnData<TReturnData> returnData
+        )
+        {
+            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+                (state, param) => selector((TState)state),
+                Array.Empty<object>(),
+                obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                }
+            ));
+        }
+
+        public static SelectEffect Create(
+            [NotNull] Func<TState, object[], TReturnData> selector,
+            [NotNull] ReturnData<TReturnData> returnData,
+            [NotNull] params object[] args
+        )
+        {
+            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+                (state, param) => selector((TState)state, param),
+                args,
+                obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                }
+            ));
+        }
+
+        public static SelectEffect Create<TArgument>(
+            [NotNull] Func<TState, TArgument, TReturnData> selector,
+            [CanBeNull] TArgument arg,
+            [NotNull] ReturnData<TReturnData> returnData
+        )
+        {
+            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+                (state, param) => selector((TState)state, (TArgument)param[0]),
+                new[] { (object)arg },
+                obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                }
+            ));
+        }
+
+        public static SelectEffect Create<TArgument1, TArgument2>(
+            [NotNull] Func<TState, TArgument1, TArgument2, TReturnData> selector,
+            [CanBeNull] TArgument1 arg1, [CanBeNull] TArgument2 arg2,
+            [NotNull] ReturnData<TReturnData> returnData
+        )
+        {
+            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+                (state, param) => selector(
+                    (TState)state,
+                    (TArgument1)param[0],
+                    (TArgument2)param[1]
+                ),
+                new[]
+                {
+                    (object)arg1,
+                    arg2
+                },
+                obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                }
+            ));
+        }
+
+        public static SelectEffect Create<TArgument1, TArgument2, TArgument3>(
+            [NotNull] Func<TState, TArgument1, TArgument2, TArgument3, TReturnData> selector,
+            [CanBeNull] TArgument1 arg1, [CanBeNull] TArgument2 arg2, [CanBeNull] TArgument3 arg3,
+            [NotNull] ReturnData<TReturnData> returnData
+        )
+        {
+            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+                (state, param) => selector(
+                    (TState)state,
+                    (TArgument1)param[0],
+                    (TArgument2)param[1],
+                    (TArgument3)param[2]
+                ),
+                new[]
+                {
+                    (object)arg1,
+                    arg2,
+                    arg3
+                },
+                obj =>
+                {
+                    if (obj == null)
+                    {
+                        returnData.SetValue(default);
+                    }
+                    else
+                    {
+                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
+                        returnData.SetValue(value);
+                    }
+                }
+            ));
+        }
+    }
+
+    internal static class PutEffectCreator
+    {
+        public static PutEffect Create(object action)
+        {
+            return new PutEffect(new PutEffect.PutEffectDescriptor(action));
+        }
+    }
+
+    internal static class TakeEffectCreator
+    {
+        public static TakeEffect Create(Func<object, bool> pattern)
+        {
+            return new TakeEffect(new TakeEffect.TakeEffectDescriptor(pattern));
+        }
+    }
+
+    internal static class ForkEffectCreator
+    {
+        public static ForkEffect Create(Saga saga)
+        {
+            return new ForkEffect(new ForkEffect.ForkEffectDescriptor(
+                a => UniTask.FromResult((object)saga()),
+                Array.Empty<object>(),
+                null,
+                true
+            ));
+        }
+    }
+}
