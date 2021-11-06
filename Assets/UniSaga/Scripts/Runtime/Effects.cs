@@ -1,6 +1,7 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using UniSaga.Core;
 
@@ -10,8 +11,35 @@ namespace UniSaga
     {
         #region Call
 
+        public static IEffect Call(
+            Func<object[], CancellationToken, UniTask> function,
+            params object[] args
+        )
+        {
+            if (function == null) throw new InvalidOperationException(nameof(function));
+            if (args == null) throw new InvalidOperationException(nameof(args));
+            return CallEffectCreator.Create(function, args);
+        }
+
+        public static IEffect Call(
+            Func<CancellationToken, UniTask> function
+        )
+        {
+            if (function == null) throw new InvalidOperationException(nameof(function));
+            return CallEffectCreator.Create(function);
+        }
+
+        public static IEffect Call<TArgument>(
+            Func<TArgument, CancellationToken, UniTask> function,
+            TArgument arg
+        )
+        {
+            if (function == null) throw new InvalidOperationException(nameof(function));
+            return CallEffectCreator.Create(function, arg);
+        }
+
         public static IEffect Call<TReturnData>(
-            Func<object[], UniTask<TReturnData>> function,
+            Func<object[], CancellationToken, UniTask<TReturnData>> function,
             ReturnData<TReturnData> returnData = null,
             params object[] args
         )
@@ -22,7 +50,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TReturnData>(
-            Func<UniTask<TReturnData>> function,
+            Func<CancellationToken, UniTask<TReturnData>> function,
             ReturnData<TReturnData> returnData = null
         )
         {
@@ -31,7 +59,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TArgument, TReturnData>(
-            Func<TArgument, UniTask<TReturnData>> function,
+            Func<TArgument, CancellationToken, UniTask<TReturnData>> function,
             TArgument arg,
             ReturnData<TReturnData> returnData = null
         )
@@ -41,7 +69,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TArgument1, TArgument2, TReturnData>(
-            Func<TArgument1, TArgument2, UniTask<TReturnData>> function,
+            Func<TArgument1, TArgument2, CancellationToken, UniTask<TReturnData>> function,
             TArgument1 arg1, TArgument2 arg2,
             ReturnData<TReturnData> returnData = null
         )
@@ -51,7 +79,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TArgument1, TArgument2, TArgument3, TReturnData>(
-            Func<TArgument1, TArgument2, TArgument3, UniTask<TReturnData>> function,
+            Func<TArgument1, TArgument2, TArgument3, CancellationToken, UniTask<TReturnData>> function,
             TArgument1 arg1, TArgument2 arg2, TArgument3 arg3,
             ReturnData<TReturnData> returnData = null
         )
@@ -143,10 +171,20 @@ namespace UniSaga
 
         #region Fork
 
-        public static IEffect Fork(Saga saga)
+        public static IEffect Fork(Saga saga, ReturnData<SagaTask> returnData = null)
         {
             if (saga == null) throw new InvalidOperationException(nameof(saga));
-            return ForkEffectCreator.Create(saga);
+            return ForkEffectCreator.Create(saga, returnData);
+        }
+
+        #endregion
+
+        #region Join
+
+        public static IEffect Join(SagaTask sagaTask)
+        {
+            if (sagaTask == null) throw new InvalidOperationException(nameof(sagaTask));
+            return JoinEffectCreator.Create(sagaTask);
         }
 
         #endregion

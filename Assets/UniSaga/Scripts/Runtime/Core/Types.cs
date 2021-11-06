@@ -1,6 +1,7 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
+using System.Threading;
 using Cysharp.Threading.Tasks;
 using JetBrains.Annotations;
 
@@ -9,7 +10,7 @@ namespace UniSaga.Core
     internal abstract class SimpleEffect<TPayload> : IEffect where TPayload : class
     {
         public bool Combinator => false;
-        public abstract TPayload Payload { get; }
+        [NotNull] public abstract TPayload Payload { get; }
         object IEffect.Payload => Payload;
     }
 
@@ -23,7 +24,7 @@ namespace UniSaga.Core
     internal interface ICallEffectDescriptor
     {
         [CanBeNull] object Context { get; }
-        [NotNull] Func<object[], UniTask<object>> Fn { get; }
+        [NotNull] Func<object[], CancellationToken, UniTask<object>> Fn { get; }
         [NotNull] object[] Args { get; }
         [CanBeNull] Action<object> SetResultValue { get; }
     }
@@ -43,9 +44,39 @@ namespace UniSaga.Core
         bool Detached { get; }
     }
 
+    internal interface IJoinEffectDescriptor : ICallEffectDescriptor
+    {
+    }
+
+    internal class JoinEffect : SimpleEffect<IJoinEffectDescriptor>
+    {
+        public JoinEffect(IJoinEffectDescriptor payload)
+        {
+            Payload = payload;
+        }
+
+        public override IJoinEffectDescriptor Payload { get; }
+
+        public class JoinEffectDescriptor : IJoinEffectDescriptor
+        {
+            public JoinEffectDescriptor(SagaTask sagaTask)
+            {
+                Context = sagaTask;
+                Fn = (a, t) => UniTask.Never<object>(t);
+                Args = Array.Empty<object>();
+                SetResultValue = null;
+            }
+
+            public object Context { get; }
+            public Func<object[], CancellationToken, UniTask<object>> Fn { get; }
+            public object[] Args { get; }
+            public Action<object> SetResultValue { get; }
+        }
+    }
+
     internal class ForkEffect : SimpleEffect<IForkEffectDescriptor>
     {
-        public ForkEffect(IForkEffectDescriptor payload)
+        public ForkEffect([NotNull] IForkEffectDescriptor payload)
         {
             Payload = payload;
         }
@@ -55,21 +86,21 @@ namespace UniSaga.Core
         public class ForkEffectDescriptor : IForkEffectDescriptor
         {
             public ForkEffectDescriptor(
-                [NotNull] Func<object[], UniTask<object>> fn,
+                Saga saga,
                 [NotNull] object[] args,
                 [CanBeNull] Action<object> setResultValue,
                 bool detached
             )
             {
-                Context = null;
-                Fn = fn;
+                Context = saga;
+                Fn = (a, t) => UniTask.Never<object>(t);
                 Args = args;
                 SetResultValue = setResultValue;
                 Detached = detached;
             }
 
             public object Context { get; }
-            public Func<object[], UniTask<object>> Fn { get; }
+            public Func<object[], CancellationToken, UniTask<object>> Fn { get; }
             public object[] Args { get; }
             public Action<object> SetResultValue { get; }
             public bool Detached { get; }
@@ -78,7 +109,7 @@ namespace UniSaga.Core
 
     internal class TakeEffect : SimpleEffect<ITakeEffectDescriptor>
     {
-        public TakeEffect(ITakeEffectDescriptor payload)
+        public TakeEffect([NotNull] ITakeEffectDescriptor payload)
         {
             Payload = payload;
         }
@@ -155,7 +186,7 @@ namespace UniSaga.Core
         public class CallEffectDescriptor : ICallEffectDescriptor
         {
             public CallEffectDescriptor(
-                [NotNull] Func<object[], UniTask<object>> fn,
+                [NotNull] Func<object[], CancellationToken, UniTask<object>> fn,
                 [NotNull] object[] args,
                 [CanBeNull] Action<object> setResultValue
             )
@@ -168,7 +199,7 @@ namespace UniSaga.Core
 
             public CallEffectDescriptor(
                 [CanBeNull] object context,
-                [NotNull] Func<object[], UniTask<object>> fn,
+                [NotNull] Func<object[], CancellationToken, UniTask<object>> fn,
                 [NotNull] object[] args,
                 [CanBeNull] Action<object> setResultValue
             )
@@ -180,7 +211,7 @@ namespace UniSaga.Core
             }
 
             public object Context { get; }
-            public Func<object[], UniTask<object>> Fn { get; }
+            public Func<object[], CancellationToken, UniTask<object>> Fn { get; }
             public object[] Args { get; }
             public Action<object> SetResultValue { get; }
         }

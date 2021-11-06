@@ -2,20 +2,19 @@
 
 using System;
 using System.Collections.Generic;
-using Cysharp.Threading.Tasks;
+using System.Threading;
 using JetBrains.Annotations;
 using UniRedux;
 using UniSaga.Core;
 
 namespace UniSaga
 {
-    public delegate IEnumerator<IEffect> Saga();
-
     public class UniSagaMiddleware<TState> : IDisposable
     {
         private Func<TState> _getState;
         private Func<object, object> _dispatch;
         private readonly Subject<object> _subject = new Subject<object>();
+        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         public Func<Dispatcher, Dispatcher> Middleware(IStore<TState> store)
         {
@@ -28,70 +27,41 @@ namespace UniSaga
             };
         }
 
-        public async void Run(Saga rootSaga)
+        public SagaTask Run(Saga rootSaga)
         {
             if (rootSaga == null) throw new InvalidOperationException();
             if (_getState == null) throw new InvalidOperationException();
             if (_dispatch == null) throw new InvalidOperationException();
-
-            await RunSaga(rootSaga(), _getState, _dispatch, _subject);
-        }
-
-        private static async UniTask RunSaga(
-            [NotNull] IEnumerator<IEffect> enumerator,
-            [NotNull] Func<TState> getState,
-            [NotNull] Func<object, object> dispatch,
-            [NotNull] IObservable<object> subject)
-        {
-            while (enumerator.MoveNext())
-            {
-                var effect = enumerator.Current;
-                if (effect == null)
-                {
-                    await UniTask.DelayFrame(1);
-                    continue;
-                }
-
-                switch (effect)
-                {
-                    case CallEffect callEffect:
-                    {
-                        var value = await callEffect.Payload.Fn(callEffect.Payload.Args);
-                        callEffect.Payload.SetResultValue?.Invoke(value);
-                        continue;
-                    }
-                    case SelectEffect selectEffect:
-                    {
-                        var value = selectEffect.Payload.Selector(getState(), selectEffect.Payload.Args);
-                        selectEffect.Payload.SetResultValue(value);
-                        continue;
-                    }
-                    case PutEffect putEffect:
-                    {
-                        dispatch(putEffect.Payload.Action);
-                        continue;
-                    }
-                    case TakeEffect takeEffect:
-                    {
-                        await subject.Where(takeEffect.Payload.Pattern).ToUniTask(true);
-                        continue;
-                    }
-                    case ForkEffect forkEffect:
-                    {
-                        UniTask.Run(async () =>
-                        {
-                            var newEnumerator = (IEnumerator<IEffect>)await forkEffect.Payload.Fn(forkEffect.Payload.Args);
-                            await RunSaga(newEnumerator, getState, dispatch, subject);
-                        });
-                        continue;
-                    }
-                }
-            }
+            if (_cancellationTokenSource.Token.IsCancellationRequested) return null;
+            var sagaTask = new SagaTask(_cancellationTokenSource);
+            Run(
+                _getState,
+                _dispatch,
+                _subject,
+                sagaTask,
+                rootSaga()
+            );
+            return sagaTask;
         }
 
         public void Dispose()
         {
             _subject?.Dispose();
+        }
+
+        private static async void Run(
+            [NotNull] Func<TState> getState,
+            [NotNull] Func<object, object> dispatch,
+            [NotNull] IObservable<object> subject,
+            [NotNull] SagaTask sagaTask,
+            IEnumerator<IEffect> effects
+        )
+        {
+            using var runner = new EffectRunner<TState>(getState, dispatch, subject);
+            await runner.Run(
+                effects,
+                sagaTask
+            );
         }
     }
 
