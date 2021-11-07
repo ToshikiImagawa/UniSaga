@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using JetBrains.Annotations;
@@ -34,61 +35,146 @@ namespace UniSaga.Core
             SagaTask sagaTask
         )
         {
-            var token = sagaTask.Token;
             if (_isDisposed) return;
             while (enumerator.MoveNext())
             {
-                token.ThrowIfCancellationRequested();
-
-                var effect = enumerator.Current;
-                if (effect == null)
-                {
-                    await UniTask.DelayFrame(1, cancellationToken: token);
-                    continue;
-                }
-
-                switch (effect)
-                {
-                    case CallEffect callEffect:
-                    {
-                        await RunCallEffect(callEffect, token);
-                        continue;
-                    }
-                    case SelectEffect selectEffect:
-                    {
-                        RunSelectEffect(selectEffect);
-                        continue;
-                    }
-                    case PutEffect putEffect:
-                    {
-                        RunPutEffect(putEffect);
-                        continue;
-                    }
-                    case TakeEffect takeEffect:
-                    {
-                        await RunTakeEffect(takeEffect, token);
-                        continue;
-                    }
-                    case ForkEffect forkEffect:
-                    {
-                        RunForkEffect(forkEffect, sagaTask);
-                        continue;
-                    }
-                    case JoinEffect joinEffect:
-                    {
-                        await RunJoinEffect(joinEffect, token);
-                        continue;
-                    }
-                }
+                await Run(enumerator.Current, sagaTask);
             }
 
-            await UniTask.WaitUntil(sagaTask.TryComplete, cancellationToken: token);
+            await UniTask.WaitUntil(sagaTask.TryComplete, cancellationToken: sagaTask.Token);
+        }
+
+        private async UniTask Run(
+            [CanBeNull] IEffect effect,
+            SagaTask sagaTask
+        )
+        {
+            sagaTask.Token.ThrowIfCancellationRequested();
+            if (effect == null)
+            {
+                await UniTask.DelayFrame(1, cancellationToken: sagaTask.Token);
+                return;
+            }
+
+            switch (effect)
+            {
+                case AllEffect allEffect:
+                {
+                    await RunAllEffect(allEffect, sagaTask);
+                    return;
+                }
+                case RaceEffect raceEffect:
+                {
+                    await RunRaceEffect(raceEffect, sagaTask);
+                    return;
+                }
+                case CallEffect callEffect:
+                {
+                    await RunCallEffect(callEffect, sagaTask.Token);
+                    return;
+                }
+                case CancelEffect cancelEffect:
+                {
+                    RunCancelEffect(cancelEffect, sagaTask);
+                    return;
+                }
+                case SelectEffect selectEffect:
+                {
+                    RunSelectEffect(selectEffect);
+                    return;
+                }
+                case PutEffect putEffect:
+                {
+                    RunPutEffect(putEffect);
+                    return;
+                }
+                case TakeEffect takeEffect:
+                {
+                    await RunTakeEffect(takeEffect, sagaTask.Token);
+                    return;
+                }
+                case ForkEffect forkEffect:
+                {
+                    RunForkEffect(forkEffect, sagaTask);
+                    return;
+                }
+                case JoinEffect joinEffect:
+                {
+                    await RunJoinEffect(joinEffect, sagaTask.Token);
+                    return;
+                }
+            }
+        }
+
+        private async UniTask RunAllEffect(AllEffect effect, SagaTask parentSagaTask)
+        {
+            var sources = new List<CancellationTokenSource>();
+            var tasks = effect.Payload.Effects.Select(async payloadEffect =>
+            {
+                using var forkCts = new CancellationTokenSource();
+                var sagaTask = new SagaTask(forkCts, parentSagaTask);
+                AddDisposable(forkCts);
+                sources.Add(forkCts);
+
+                try
+                {
+                    await Run(payloadEffect, sagaTask);
+                }
+                catch (Exception e)
+                {
+                    sagaTask.SetError(e);
+                }
+                finally
+                {
+                    RemoveDisposable(forkCts);
+                    sources.Remove(forkCts);
+                }
+            }).ToArray();
+            await UniTask
+                .WhenAll(tasks)
+                .WithCancellation(parentSagaTask.Token);
+            foreach (var source in sources.ToArray())
+            {
+                source.Cancel();
+            }
+        }
+
+        private async UniTask RunRaceEffect(RaceEffect effect, SagaTask parentSagaTask)
+        {
+            var tasks = effect.Payload.Effects.Select(async payloadEffect =>
+            {
+                using var forkCts = new CancellationTokenSource();
+                var sagaTask = new SagaTask(forkCts, parentSagaTask);
+                AddDisposable(forkCts);
+
+                try
+                {
+                    await Run(payloadEffect, sagaTask);
+                }
+                catch (Exception e)
+                {
+                    sagaTask.SetError(e);
+                }
+                finally
+                {
+                    RemoveDisposable(forkCts);
+                }
+            }).ToArray();
+            await UniTask
+                .WhenAny(tasks)
+                .WithCancellation(parentSagaTask.Token);
         }
 
         private static async UniTask RunCallEffect(CallEffect effect, CancellationToken token)
         {
             var value = await effect.Payload.Fn(effect.Payload.Args, token);
             effect.Payload.SetResultValue?.Invoke(value);
+        }
+
+        private static void RunCancelEffect(CancelEffect effect, SagaTask sagaTask)
+        {
+            var task = effect.Payload.Task ?? sagaTask;
+            task.Cancel();
         }
 
         private void RunSelectEffect(SelectEffect effect)
@@ -109,13 +195,23 @@ namespace UniSaga.Core
 
         private async void RunForkEffect(ForkEffect effect, SagaTask parentSagaTask)
         {
+            if (!(effect.Payload.Context is InternalSaga saga)) throw new InvalidOperationException();
             using var forkCts = new CancellationTokenSource();
             var sagaTask = new SagaTask(forkCts, parentSagaTask);
             AddDisposable(forkCts);
             effect.Payload.SetResultValue?.Invoke(sagaTask);
-            if (!(effect.Payload.Context is Saga saga)) throw new InvalidOperationException();
-            await Run(saga(), sagaTask);
-            RemoveDisposable(forkCts);
+            try
+            {
+                await Run(saga(effect.Payload.Args), sagaTask);
+            }
+            catch (Exception e)
+            {
+                sagaTask.SetError(e);
+            }
+            finally
+            {
+                RemoveDisposable(forkCts);
+            }
         }
 
         private static async UniTask RunJoinEffect(JoinEffect effect, CancellationToken token)

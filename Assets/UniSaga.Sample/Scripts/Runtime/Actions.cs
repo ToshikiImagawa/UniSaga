@@ -25,4 +25,8 @@ namespace UniSaga.Sample
 
         public string Message { get; }
     }
+
+    public readonly struct StartAction
+    {
+    }
 }

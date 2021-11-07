@@ -11,6 +11,21 @@ namespace UniSaga.Sample
     {
         public static IEnumerator<IEffect> RootSaga()
         {
+            const string logPrefix = "<color=green>[RootSaga]</color>";
+
+            var takeEveryTask = new ReturnData<SagaTask>();
+            yield return Effects.TakeEvery(
+                action => action is StartAction,
+                TakeEverySaga,
+                takeEveryTask
+            );
+            var takeLatestTask = new ReturnData<SagaTask>();
+            yield return Effects.TakeLatest(
+                action => action is StartAction,
+                TakeLatestSaga,
+                takeLatestTask
+            );
+
             // 現在のUserIdが5か判定
             {
                 var checkUserId = CheckUserId5Saga();
@@ -28,22 +43,23 @@ namespace UniSaga.Sample
                 var checkUserId = CheckUserId5Saga();
                 while (checkUserId.MoveNext()) yield return checkUserId.Current;
             }
-            Debug.Log("Wait RestartAction");
+            Debug.Log($"{logPrefix} Wait RestartAction");
             yield return Effects.Take(action => action is RestartAction);
-            Debug.Log("Run RestartAction");
-            Debug.Log("Before ForkSaga");
+            Debug.Log($"{logPrefix} Run RestartAction");
+            Debug.Log($"{logPrefix} Before ForkSaga");
             var forkTask = new ReturnData<SagaTask>();
             yield return Effects.Fork(ForkSaga, forkTask);
-            Debug.Log("After ForkSaga");
+            Debug.Log($"{logPrefix} After ForkSaga");
             yield return Effects.Call(async token =>
             {
-                Debug.Log("Wait 2s");
+                Debug.Log($"{logPrefix} Wait 2s");
                 await UniTask.Delay(2000, cancellationToken: token);
             });
+            Debug.Log($"{logPrefix} Put RestartAction");
             yield return Effects.Put(new RestartAction());
-            Debug.Log("Wait for ForkTask to complete");
+            Debug.Log($"{logPrefix} Wait for ForkTask to complete");
             yield return Effects.Join(forkTask.Value);
-            Debug.Log("ForkTask is complete");
+            Debug.Log($"{logPrefix} ForkTask is complete");
 
             // UserIdの取得
             {
@@ -56,6 +72,12 @@ namespace UniSaga.Sample
                 var checkUserId = CheckUserId5Saga();
                 while (checkUserId.MoveNext()) yield return checkUserId.Current;
             }
+
+            Debug.Log($"{logPrefix} Put StartAction 1");
+            yield return Effects.Put(new StartAction());
+
+            Debug.Log($"{logPrefix} Put StartAction 2");
+            yield return Effects.Put(new StartAction());
         }
 
         private static IEnumerator<IEffect> CheckUserId5Saga()
@@ -98,14 +120,47 @@ namespace UniSaga.Sample
 
         private static IEnumerator<IEffect> ForkSaga()
         {
-            Debug.Log("Start ForkSaga");
+            const string logPrefix = "<color=blue>[ForkSaga]</color>";
+            Debug.Log($"{logPrefix} Start ForkSaga");
+            Debug.Log($"{logPrefix} Take RestartAction");
             yield return Effects.Take(action => action is RestartAction);
+            Debug.Log($"{logPrefix} Restart ForkSaga");
             yield return Effects.Call(async token =>
             {
-                Debug.Log("Wait 2s");
+                Debug.Log($"{logPrefix} Wait 2s");
                 await UniTask.Delay(2000, cancellationToken: token);
             });
-            Debug.Log("End ForkSaga");
+            Debug.Log($"{logPrefix} End ForkSaga");
+        }
+
+        private static int _takeEverySagaIndex;
+
+        private static IEnumerator<IEffect> TakeEverySaga()
+        {
+            var logPrefix = $"<color=red>[ForkSaga:{_takeEverySagaIndex}]</color>";
+            _takeEverySagaIndex++;
+            Debug.Log($"{logPrefix} Start TakeEverySaga");
+
+            yield return Effects.Call(async token =>
+            {
+                Debug.Log($"{logPrefix} Wait 2s");
+                await UniTask.Delay(2000, cancellationToken: token);
+            });
+            Debug.Log($"{logPrefix} End ForkSaga");
+        }
+
+        private static IEnumerator<IEffect> TakeLatestSaga()
+        {
+            var logPrefix = $"<color=red>[ForkSaga:{_takeEverySagaIndex}]</color>";
+            _takeEverySagaIndex++;
+            Debug.Log($"{logPrefix} Start TakeLatestSaga");
+
+            yield return Effects.Call(async token =>
+            {
+                Debug.Log($"{logPrefix} Wait 2s");
+                await UniTask.Delay(2000, cancellationToken: token);
+            });
+            Debug.Log($"{logPrefix} End ForkSaga");
         }
     }
 }

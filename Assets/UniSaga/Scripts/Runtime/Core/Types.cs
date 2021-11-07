@@ -1,12 +1,22 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using JetBrains.Annotations;
 
 namespace UniSaga.Core
 {
+    internal delegate IEnumerator<IEffect> InternalSaga(params object[] arguments);
+
+    internal abstract class CombinatorEffect<TPayload> : IEffect where TPayload : class
+    {
+        public bool Combinator => true;
+        [NotNull] public abstract TPayload Payload { get; }
+        object IEffect.Payload => Payload;
+    }
+
     internal abstract class SimpleEffect<TPayload> : IEffect where TPayload : class
     {
         public bool Combinator => false;
@@ -19,6 +29,11 @@ namespace UniSaga.Core
         [NotNull] Func<object, object[], object> Selector { get; }
         [NotNull] object[] Args { get; }
         [NotNull] Action<object> SetResultValue { get; }
+    }
+
+    internal interface ICancelEffectDescriptor
+    {
+        [CanBeNull] SagaTask Task { get; }
     }
 
     internal interface ICallEffectDescriptor
@@ -41,11 +56,63 @@ namespace UniSaga.Core
 
     internal interface IForkEffectDescriptor : ICallEffectDescriptor
     {
-        bool Detached { get; }
     }
 
     internal interface IJoinEffectDescriptor : ICallEffectDescriptor
     {
+    }
+
+    internal interface ICombinatorEffectDescriptor
+    {
+        IEffect[] Effects { get; }
+    }
+
+    internal interface IAllEffectDescriptor : ICombinatorEffectDescriptor
+    {
+    }
+
+    internal interface IRaceEffectDescriptor : ICombinatorEffectDescriptor
+    {
+    }
+
+    internal class RaceEffect : CombinatorEffect<IRaceEffectDescriptor>
+    {
+        public RaceEffect(IRaceEffectDescriptor payload)
+        {
+            Payload = payload;
+        }
+
+        public override IRaceEffectDescriptor Payload { get; }
+
+        public class RaceEffectDescriptor : IRaceEffectDescriptor
+        {
+            public RaceEffectDescriptor(IEffect[] effects)
+            {
+                Effects = effects;
+            }
+
+            public IEffect[] Effects { get; }
+        }
+    }
+
+    internal class AllEffect : CombinatorEffect<IAllEffectDescriptor>
+    {
+        public AllEffect(IAllEffectDescriptor payload)
+        {
+            Payload = payload;
+        }
+
+        public override IAllEffectDescriptor Payload { get; }
+
+        public class AllEffectDescriptor : IAllEffectDescriptor
+        {
+            public AllEffectDescriptor(IEffect[] effects)
+            {
+                Effects = effects;
+            }
+
+            public IEffect[] Effects { get; }
+        }
     }
 
     internal class JoinEffect : SimpleEffect<IJoinEffectDescriptor>
@@ -86,13 +153,13 @@ namespace UniSaga.Core
         public class ForkEffectDescriptor : IForkEffectDescriptor
         {
             public ForkEffectDescriptor(
-                Saga saga,
+                [NotNull] object context,
                 [NotNull] object[] args,
                 [CanBeNull] Action<object> setResultValue,
                 bool detached
             )
             {
-                Context = saga;
+                Context = context;
                 Fn = (a, t) => UniTask.Never<object>(t);
                 Args = args;
                 SetResultValue = setResultValue;
@@ -171,6 +238,26 @@ namespace UniSaga.Core
             public Func<object, object[], object> Selector { get; }
             public object[] Args { get; }
             public Action<object> SetResultValue { get; }
+        }
+    }
+
+    internal sealed class CancelEffect : SimpleEffect<ICancelEffectDescriptor>
+    {
+        public CancelEffect(ICancelEffectDescriptor payload)
+        {
+            Payload = payload;
+        }
+
+        public override ICancelEffectDescriptor Payload { get; }
+
+        public class CancelEffectDescriptor : ICancelEffectDescriptor
+        {
+            public CancelEffectDescriptor([CanBeNull] SagaTask task)
+            {
+                Task = task;
+            }
+
+            public SagaTask Task { get; }
         }
     }
 

@@ -29,6 +29,54 @@ namespace UniSaga
 
         public SagaTask Run(Saga rootSaga)
         {
+            return Run(_ => rootSaga());
+        }
+
+        public SagaTask Run<TArgument>(
+            Saga<TArgument> rootSaga,
+            TArgument argument
+        )
+        {
+            return Run(args => rootSaga((TArgument)args[0]), argument);
+        }
+
+        public SagaTask Run<TArgument1, TArgument2>(
+            Saga<TArgument1, TArgument2> rootSaga,
+            TArgument1 argument1,
+            TArgument2 argument2
+        )
+        {
+            return Run(
+                args => rootSaga(
+                    (TArgument1)args[0],
+                    (TArgument2)args[1]
+                ),
+                argument1,
+                argument2
+            );
+        }
+
+        public SagaTask Run<TArgument1, TArgument2, TArgument3>(
+            Saga<TArgument1, TArgument2, TArgument3> rootSaga,
+            TArgument1 argument1,
+            TArgument2 argument2,
+            TArgument3 argument3
+        )
+        {
+            return Run(
+                args => rootSaga(
+                    (TArgument1)args[0],
+                    (TArgument2)args[1],
+                    (TArgument3)args[2]
+                ),
+                argument1,
+                argument2,
+                argument3
+            );
+        }
+
+        private SagaTask Run(InternalSaga rootSaga, params object[] arguments)
+        {
             if (rootSaga == null) throw new InvalidOperationException();
             if (_getState == null) throw new InvalidOperationException();
             if (_dispatch == null) throw new InvalidOperationException();
@@ -39,7 +87,7 @@ namespace UniSaga
                 _dispatch,
                 _subject,
                 sagaTask,
-                rootSaga()
+                rootSaga(arguments ?? Array.Empty<object>())
             );
             return sagaTask;
         }

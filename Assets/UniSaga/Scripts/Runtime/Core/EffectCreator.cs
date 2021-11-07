@@ -230,6 +230,14 @@ namespace UniSaga.Core
         }
     }
 
+    internal static class CancelEffectCreator
+    {
+        public static CancelEffect Create([CanBeNull] SagaTask task)
+        {
+            return new CancelEffect(new CancelEffect.CancelEffectDescriptor(task));
+        }
+    }
+
     internal static class SelectEffectCreator<TState, TReturnData>
     {
         public static SelectEffect Create(
@@ -380,7 +388,9 @@ namespace UniSaga.Core
 
     internal static class TakeEffectCreator
     {
-        public static TakeEffect Create(Func<object, bool> pattern)
+        public static TakeEffect Create(
+            [NotNull] Func<object, bool> pattern
+        )
         {
             return new TakeEffect(new TakeEffect.TakeEffectDescriptor(pattern));
         }
@@ -388,7 +398,11 @@ namespace UniSaga.Core
 
     internal static class ForkEffectCreator
     {
-        public static ForkEffect Create([NotNull] Saga saga, [CanBeNull] ReturnData<SagaTask> returnData)
+        public static ForkEffect Create(
+            [NotNull] InternalSaga saga,
+            [CanBeNull] ReturnData<SagaTask> returnData,
+            [NotNull] object[] arguments
+        )
         {
             Action<object> setResultValue = null;
             if (returnData != null)
@@ -409,7 +423,7 @@ namespace UniSaga.Core
 
             return new ForkEffect(new ForkEffect.ForkEffectDescriptor(
                 saga,
-                Array.Empty<object>(),
+                arguments,
                 setResultValue,
                 true
             ));
@@ -421,6 +435,22 @@ namespace UniSaga.Core
         public static JoinEffect Create([NotNull] SagaTask sagaTask)
         {
             return new JoinEffect(new JoinEffect.JoinEffectDescriptor(sagaTask));
+        }
+    }
+
+    internal static class AllEffectCreator
+    {
+        public static AllEffect Create([NotNull] IEffect[] effects)
+        {
+            return new AllEffect(new AllEffect.AllEffectDescriptor(effects));
+        }
+    }
+
+    internal static class RaceEffectCreator
+    {
+        public static RaceEffect Create([NotNull] IEffect[] effects)
+        {
+            return new RaceEffect(new RaceEffect.RaceEffectDescriptor(effects));
         }
     }
 }
