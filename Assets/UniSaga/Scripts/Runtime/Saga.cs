@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using JetBrains.Annotations;
-using UniRedux;
 using UniSystem.Reactive.Disposables;
 
 namespace UniSaga
