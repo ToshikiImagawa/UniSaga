@@ -155,22 +155,19 @@ namespace UniSaga.Core
             public ForkEffectDescriptor(
                 [NotNull] object context,
                 [NotNull] object[] args,
-                [CanBeNull] Action<object> setResultValue,
-                bool detached
+                [CanBeNull] Action<object> setResultValue
             )
             {
                 Context = context;
                 Fn = (a, t) => UniTask.Never<object>(t);
                 Args = args;
                 SetResultValue = setResultValue;
-                Detached = detached;
             }
 
             public object Context { get; }
             public Func<object[], CancellationToken, UniTask<object>> Fn { get; }
             public object[] Args { get; }
             public Action<object> SetResultValue { get; }
-            public bool Detached { get; }
         }
     }
 

@@ -424,8 +424,7 @@ namespace UniSaga.Core
             return new ForkEffect(new ForkEffect.ForkEffectDescriptor(
                 saga,
                 arguments,
-                setResultValue,
-                true
+                setResultValue
             ));
         }
     }

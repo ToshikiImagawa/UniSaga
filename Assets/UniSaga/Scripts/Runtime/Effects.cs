@@ -478,5 +478,19 @@ namespace UniSaga
         }
 
         #endregion
+
+        #region Delay
+
+        public static IEffect Delay(int millisecondsDelay)
+        {
+            return Call(async token => { await UniTask.Delay(millisecondsDelay, cancellationToken: token); });
+        }
+
+        public static IEffect DelayFrame(int delayFrameCount)
+        {
+            return Call(async token => { await UniTask.DelayFrame(delayFrameCount, cancellationToken: token); });
+        }
+
+        #endregion
     }
 }

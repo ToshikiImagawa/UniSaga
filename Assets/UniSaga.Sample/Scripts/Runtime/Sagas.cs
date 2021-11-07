@@ -50,11 +50,9 @@ namespace UniSaga.Sample
             var forkTask = new ReturnData<SagaTask>();
             yield return Effects.Fork(ForkSaga, forkTask);
             Debug.Log($"{logPrefix} After ForkSaga");
-            yield return Effects.Call(async token =>
-            {
-                Debug.Log($"{logPrefix} Wait 2s");
-                await UniTask.Delay(2000, cancellationToken: token);
-            });
+
+            Debug.Log($"{logPrefix} Wait 2s");
+            yield return Effects.Delay(2000);
             Debug.Log($"{logPrefix} Put RestartAction");
             yield return Effects.Put(new RestartAction());
             Debug.Log($"{logPrefix} Wait for ForkTask to complete");
@@ -125,11 +123,8 @@ namespace UniSaga.Sample
             Debug.Log($"{logPrefix} Take RestartAction");
             yield return Effects.Take(action => action is RestartAction);
             Debug.Log($"{logPrefix} Restart ForkSaga");
-            yield return Effects.Call(async token =>
-            {
-                Debug.Log($"{logPrefix} Wait 2s");
-                await UniTask.Delay(2000, cancellationToken: token);
-            });
+            Debug.Log($"{logPrefix} Wait 2s");
+            yield return Effects.Delay(2000);
             Debug.Log($"{logPrefix} End ForkSaga");
         }
 
@@ -141,11 +136,24 @@ namespace UniSaga.Sample
             _takeEverySagaIndex++;
             Debug.Log($"{logPrefix} Start TakeEverySaga");
 
-            yield return Effects.Call(async token =>
-            {
-                Debug.Log($"{logPrefix} Wait 2s");
-                await UniTask.Delay(2000, cancellationToken: token);
-            });
+            Debug.Log($"{logPrefix} Wait 1 frame");
+            yield return Effects.DelayFrame(1);
+            Debug.Log($"{logPrefix} End 1 frame");
+
+            yield return Effects.Race(
+                Effects.Call(async token =>
+                {
+                    Debug.Log($"{logPrefix} Race Call 1 Wait 2s");
+                    await UniTask.Delay(2000, cancellationToken: token);
+                    Debug.Log($"{logPrefix} Race Call 1 End");
+                }),
+                Effects.Call(async token =>
+                {
+                    Debug.Log($"{logPrefix} Race Call 2 Wait 4s");
+                    await UniTask.Delay(4000, cancellationToken: token);
+                    Debug.Log($"{logPrefix} Race Call 2 End");
+                })
+            );
             Debug.Log($"{logPrefix} End ForkSaga");
         }
 
@@ -155,11 +163,24 @@ namespace UniSaga.Sample
             _takeEverySagaIndex++;
             Debug.Log($"{logPrefix} Start TakeLatestSaga");
 
-            yield return Effects.Call(async token =>
-            {
-                Debug.Log($"{logPrefix} Wait 2s");
-                await UniTask.Delay(2000, cancellationToken: token);
-            });
+            Debug.Log($"{logPrefix} Wait 1 frame");
+            yield return Effects.DelayFrame(1);
+            Debug.Log($"{logPrefix} End 1 frame");
+
+            yield return Effects.All(
+                Effects.Call(async token =>
+                {
+                    Debug.Log($"{logPrefix} All Call 1 Wait 2s");
+                    await UniTask.Delay(2000, cancellationToken: token);
+                    Debug.Log($"{logPrefix} All Call 1 End");
+                }),
+                Effects.Call(async token =>
+                {
+                    Debug.Log($"{logPrefix} All Call 2 Wait 4s");
+                    await UniTask.Delay(4000, cancellationToken: token);
+                    Debug.Log($"{logPrefix} All Call 2 End");
+                })
+            );
             Debug.Log($"{logPrefix} End ForkSaga");
         }
     }

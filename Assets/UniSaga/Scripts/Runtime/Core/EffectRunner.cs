@@ -106,15 +106,29 @@ namespace UniSaga.Core
             }
         }
 
-        private async UniTask RunAllEffect(AllEffect effect, SagaTask parentSagaTask)
+        private async UniTask RunAllEffect(IEffect effect, SagaTask parentSagaTask)
         {
-            var sources = new List<CancellationTokenSource>();
-            var tasks = effect.Payload.Effects.Select(async payloadEffect =>
+            var tasks = ConvertEffectsTasks(effect, parentSagaTask);
+            await UniTask
+                .WhenAll(tasks)
+                .WithCancellation(parentSagaTask.Token);
+        }
+
+        private UniTask[] ConvertEffectsTasks(
+            IEffect effect,
+            SagaTask parentSagaTask,
+            ICollection<CancellationTokenSource> sources = null
+        )
+        {
+            if (!effect.Combinator) return Array.Empty<UniTask>();
+            if (!(effect.Payload is ICombinatorEffectDescriptor descriptor)) throw new InvalidOperationException();
+
+            var tasks = descriptor.Effects.Select(async payloadEffect =>
             {
                 using var forkCts = new CancellationTokenSource();
                 var sagaTask = new SagaTask(forkCts, parentSagaTask);
                 AddDisposable(forkCts);
-                sources.Add(forkCts);
+                sources?.Add(forkCts);
 
                 try
                 {
@@ -127,42 +141,23 @@ namespace UniSaga.Core
                 finally
                 {
                     RemoveDisposable(forkCts);
-                    sources.Remove(forkCts);
+                    sources?.Remove(forkCts);
                 }
             }).ToArray();
+            return tasks;
+        }
+
+        private async UniTask RunRaceEffect(IEffect effect, SagaTask parentSagaTask)
+        {
+            var sources = new List<CancellationTokenSource>();
+            var tasks = ConvertEffectsTasks(effect, parentSagaTask, sources);
             await UniTask
-                .WhenAll(tasks)
+                .WhenAny(tasks)
                 .WithCancellation(parentSagaTask.Token);
             foreach (var source in sources.ToArray())
             {
                 source.Cancel();
             }
-        }
-
-        private async UniTask RunRaceEffect(RaceEffect effect, SagaTask parentSagaTask)
-        {
-            var tasks = effect.Payload.Effects.Select(async payloadEffect =>
-            {
-                using var forkCts = new CancellationTokenSource();
-                var sagaTask = new SagaTask(forkCts, parentSagaTask);
-                AddDisposable(forkCts);
-
-                try
-                {
-                    await Run(payloadEffect, sagaTask);
-                }
-                catch (Exception e)
-                {
-                    sagaTask.SetError(e);
-                }
-                finally
-                {
-                    RemoveDisposable(forkCts);
-                }
-            }).ToArray();
-            await UniTask
-                .WhenAny(tasks)
-                .WithCancellation(parentSagaTask.Token);
         }
 
         private static async UniTask RunCallEffect(CallEffect effect, CancellationToken token)
