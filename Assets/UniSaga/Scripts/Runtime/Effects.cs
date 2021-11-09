@@ -1,9 +1,8 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
+using System.Collections;
 using System.Linq;
-using System.Threading;
-using Cysharp.Threading.Tasks;
 using UniSaga.Core;
 
 namespace UniSaga
@@ -13,17 +12,7 @@ namespace UniSaga
         #region Call
 
         public static IEffect Call(
-            Func<object[], CancellationToken, UniTask> function,
-            params object[] args
-        )
-        {
-            if (function == null) throw new InvalidOperationException(nameof(function));
-            if (args == null) throw new InvalidOperationException(nameof(args));
-            return CallEffectCreator.Create(function, args);
-        }
-
-        public static IEffect Call(
-            Func<CancellationToken, UniTask> function
+            Func<SagaTask, IEnumerator> function
         )
         {
             if (function == null) throw new InvalidOperationException(nameof(function));
@@ -31,7 +20,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TArgument>(
-            Func<TArgument, CancellationToken, UniTask> function,
+            Func<TArgument, SagaTask, IEnumerator> function,
             TArgument arg
         )
         {
@@ -39,54 +28,22 @@ namespace UniSaga
             return CallEffectCreator.Create(function, arg);
         }
 
-        public static IEffect Call<TReturnData>(
-            Func<object[], CancellationToken, UniTask<TReturnData>> function,
-            ReturnData<TReturnData> returnData = null,
-            params object[] args
+        public static IEffect Call<TArgument1, TArgument2>(
+            Func<TArgument1, TArgument2, SagaTask, IEnumerator> function,
+            TArgument1 arg1, TArgument2 arg2
         )
         {
             if (function == null) throw new InvalidOperationException(nameof(function));
-            if (args == null) throw new InvalidOperationException(nameof(args));
-            return CallEffectCreator<TReturnData>.Create(function, args, returnData);
+            return CallEffectCreator.Create(function, arg1, arg2);
         }
 
-        public static IEffect Call<TReturnData>(
-            Func<CancellationToken, UniTask<TReturnData>> function,
-            ReturnData<TReturnData> returnData = null
+        public static IEffect Call<TArgument1, TArgument2, TArgument3>(
+            Func<TArgument1, TArgument2, TArgument3, SagaTask, IEnumerator> function,
+            TArgument1 arg1, TArgument2 arg2, TArgument3 arg3
         )
         {
             if (function == null) throw new InvalidOperationException(nameof(function));
-            return CallEffectCreator<TReturnData>.Create(function, returnData);
-        }
-
-        public static IEffect Call<TArgument, TReturnData>(
-            Func<TArgument, CancellationToken, UniTask<TReturnData>> function,
-            TArgument arg,
-            ReturnData<TReturnData> returnData = null
-        )
-        {
-            if (function == null) throw new InvalidOperationException(nameof(function));
-            return CallEffectCreator<TReturnData>.Create(function, arg, returnData);
-        }
-
-        public static IEffect Call<TArgument1, TArgument2, TReturnData>(
-            Func<TArgument1, TArgument2, CancellationToken, UniTask<TReturnData>> function,
-            TArgument1 arg1, TArgument2 arg2,
-            ReturnData<TReturnData> returnData = null
-        )
-        {
-            if (function == null) throw new InvalidOperationException(nameof(function));
-            return CallEffectCreator<TReturnData>.Create(function, arg1, arg2, returnData);
-        }
-
-        public static IEffect Call<TArgument1, TArgument2, TArgument3, TReturnData>(
-            Func<TArgument1, TArgument2, TArgument3, CancellationToken, UniTask<TReturnData>> function,
-            TArgument1 arg1, TArgument2 arg2, TArgument3 arg3,
-            ReturnData<TReturnData> returnData = null
-        )
-        {
-            if (function == null) throw new InvalidOperationException(nameof(function));
-            return CallEffectCreator<TReturnData>.Create(function, arg1, arg2, arg3, returnData);
+            return CallEffectCreator.Create(function, arg1, arg2, arg3);
         }
 
         #endregion
@@ -483,12 +440,41 @@ namespace UniSaga
 
         public static IEffect Delay(int millisecondsDelay)
         {
-            return Call(async token => { await UniTask.Delay(millisecondsDelay, cancellationToken: token); });
+            return Call(InnerTask, millisecondsDelay);
+
+            static IEnumerator InnerTask(int millisecondsDelay, SagaTask task)
+            {
+                if (millisecondsDelay < 0)
+                {
+                    task.SetError(new ArgumentOutOfRangeException(
+                        $"Delay does not allow minus {nameof(millisecondsDelay)}. {nameof(millisecondsDelay)}:{millisecondsDelay}"
+                    ));
+                    yield break;
+                }
+
+                yield return new UnityEngine.WaitForSeconds(millisecondsDelay / 1000f);
+            }
         }
 
         public static IEffect DelayFrame(int delayFrameCount)
         {
-            return Call(async token => { await UniTask.DelayFrame(delayFrameCount, cancellationToken: token); });
+            return Call(InnerTask, delayFrameCount);
+
+            static IEnumerator InnerTask(int delayFrameCount, SagaTask task)
+            {
+                if (delayFrameCount < 0)
+                {
+                    task.SetError(new ArgumentOutOfRangeException(
+                        $"Delay does not allow minus {nameof(delayFrameCount)}. {nameof(delayFrameCount)}:{delayFrameCount}"
+                    ));
+                    yield break;
+                }
+
+                for (var i = 0; i < delayFrameCount; i++)
+                {
+                    yield return null;
+                }
+            }
         }
 
         #endregion

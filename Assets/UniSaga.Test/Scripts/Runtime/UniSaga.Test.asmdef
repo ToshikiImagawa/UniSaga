@@ -1,18 +1,19 @@
 {
-    "name": "UniSaga.Sample",
+    "name": "UniSaga.Test",
     "rootNamespace": "",
     "references": [
+        "GUID:27619889b8ba8c24980f49ee34dbb44a",
         "GUID:82fa4a73e4a924ff69b1952f0f3f7ca3",
-        "GUID:068477fc1d1534d6e820c2a37aa9d358",
-        "GUID:1ab4a4227bd94f44dab6604279a2817e",
         "GUID:f51ebe6a0ceec4240a699833d6309b23"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
-    "overrideReferences": false,
-    "precompiledReferences": [],
-    "autoReferenced": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
     "defineConstraints": [],
     "versionDefines": [],
     "noEngineReferences": false

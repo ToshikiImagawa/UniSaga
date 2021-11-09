@@ -1,10 +1,11 @@
 {
   "dependencies": {
     "com.comcreate-info.uni_redux": {
-      "version": "file:UniRedux",
+      "version": "2.0.0",
       "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
+      "source": "registry",
+      "dependencies": {},
+      "url": "http://0.0.0.0:4873"
     },
     "com.comcreate-info.uni_system": {
       "version": "file:UniSystem",

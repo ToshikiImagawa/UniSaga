@@ -1,11 +1,12 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Cysharp.Threading.Tasks;
 using JetBrains.Annotations;
+using UnityEngine;
 
 namespace UniSaga.Core
 {
@@ -30,189 +31,338 @@ namespace UniSaga.Core
             _subject = subject;
         }
 
-        public async UniTask Run(
-            [NotNull] IEnumerator<IEffect> enumerator,
+        public SagaTask Run([NotNull] IEnumerator effectsOrNull)
+        {
+            return Run(effectsOrNull, null);
+        }
+
+        private SagaTask Run([NotNull] IEnumerator effectsOrNull, [CanBeNull] SagaTask parentSagaTask)
+        {
+            var cancellationTokenSource = new CancellationTokenSource();
+            var sagaTask = new SagaTask(cancellationTokenSource, parentSagaTask);
+            AddDisposable(cancellationTokenSource);
+            sagaTask.Coroutine = UniSagaRunner.Instance.StartCoroutine(Inner());
+            return sagaTask;
+
+            IEnumerator Inner()
+            {
+                yield return ConsumeEnumerator(effectsOrNull, sagaTask);
+                while (!sagaTask.TryComplete()) yield return null;
+
+                RemoveDisposable(cancellationTokenSource);
+            }
+        }
+
+        private IEnumerator ConsumeEnumerator(
+            [NotNull] IEnumerator effectsOrNull,
             SagaTask sagaTask
         )
         {
-            if (_isDisposed) return;
-            while (enumerator.MoveNext())
-            {
-                await Run(enumerator.Current, sagaTask);
-            }
+            if (_isDisposed) yield break;
 
-            await UniTask.WaitUntil(sagaTask.TryComplete, cancellationToken: sagaTask.Token);
+            while (effectsOrNull.MoveNext())
+            {
+                if (sagaTask.IsCanceled) yield break;
+                var current = effectsOrNull.Current;
+                switch (current)
+                {
+                    case null:
+                    {
+                        yield return null;
+                        break;
+                    }
+                    case CustomYieldInstruction cyi:
+                    {
+                        while (cyi.keepWaiting)
+                        {
+                            yield return null;
+                        }
+
+                        break;
+                    }
+                    case YieldInstruction yieldInstruction:
+                    {
+                        switch (yieldInstruction)
+                        {
+                            case AsyncOperation ao:
+                                yield return WaitAsyncOperation(ao);
+                                break;
+                            case WaitForSeconds wfs:
+                                yield return WaitWaitForSeconds(wfs);
+                                break;
+                            default:
+                                sagaTask.SetError(new NotSupportedException(
+                                    $"{yieldInstruction.GetType().Name} is not supported."
+                                ));
+                                yield break;
+                        }
+
+                        break;
+                    }
+                    case IEffect effect:
+                    {
+                        switch (effect)
+                        {
+                            case AllEffect allEffect:
+                            {
+                                yield return WaitAllEffect(allEffect, sagaTask);
+                                break;
+                            }
+                            case RaceEffect raceEffect:
+                            {
+                                yield return WaitRaceEffect(raceEffect, sagaTask);
+                                break;
+                            }
+                            case CallEffect callEffect:
+                            {
+                                yield return WaitCallEffect(callEffect, sagaTask);
+                                break;
+                            }
+                            case CancelEffect cancelEffect:
+                            {
+                                RunCancelEffect(cancelEffect, sagaTask);
+                                break;
+                            }
+                            case SelectEffect selectEffect:
+                            {
+                                RunSelectEffect(selectEffect, sagaTask);
+                                break;
+                            }
+                            case PutEffect putEffect:
+                            {
+                                RunPutEffect(putEffect, sagaTask);
+                                break;
+                            }
+                            case TakeEffect takeEffect:
+                            {
+                                yield return WaitTakeEffect(takeEffect, sagaTask);
+                                break;
+                            }
+                            case ForkEffect forkEffect:
+                            {
+                                RunForkEffect(forkEffect, sagaTask);
+                                break;
+                            }
+                            case JoinEffect joinEffect:
+                            {
+                                yield return WaitJoinEffect(joinEffect, sagaTask);
+                                break;
+                            }
+                        }
+
+                        break;
+                    }
+                    case IEnumerator enumerator:
+                    {
+                        var e = ConsumeEnumerator(enumerator, sagaTask);
+                        while (e.MoveNext())
+                        {
+                            yield return null;
+                        }
+
+                        break;
+                    }
+                    default:
+                    {
+                        sagaTask.SetError(new NotSupportedException(
+                            $"{current.GetType().Name} is not supported."
+                        ));
+                        yield break;
+                    }
+                }
+            }
         }
 
-        private async UniTask Run(
-            [CanBeNull] IEffect effect,
-            SagaTask sagaTask
-        )
+        private IEnumerator WaitAllEffect(IEffect effect, SagaTask parentSagaTask)
         {
-            sagaTask.Token.ThrowIfCancellationRequested();
-            if (effect == null)
+            SagaTask[] tasks;
+            try
             {
-                await UniTask.DelayFrame(1, cancellationToken: sagaTask.Token);
-                return;
+                tasks = ConvertEffectsTasks(effect, parentSagaTask);
+            }
+            catch (Exception error)
+            {
+                parentSagaTask.SetError(error);
+                yield break;
             }
 
-            switch (effect)
+            while (!tasks.All(task => task.IsCompleted || task.IsCanceled))
             {
-                case AllEffect allEffect:
-                {
-                    await RunAllEffect(allEffect, sagaTask);
-                    return;
-                }
-                case RaceEffect raceEffect:
-                {
-                    await RunRaceEffect(raceEffect, sagaTask);
-                    return;
-                }
-                case CallEffect callEffect:
-                {
-                    await RunCallEffect(callEffect, sagaTask.Token);
-                    return;
-                }
-                case CancelEffect cancelEffect:
-                {
-                    RunCancelEffect(cancelEffect, sagaTask);
-                    return;
-                }
-                case SelectEffect selectEffect:
-                {
-                    RunSelectEffect(selectEffect);
-                    return;
-                }
-                case PutEffect putEffect:
-                {
-                    RunPutEffect(putEffect);
-                    return;
-                }
-                case TakeEffect takeEffect:
-                {
-                    await RunTakeEffect(takeEffect, sagaTask.Token);
-                    return;
-                }
-                case ForkEffect forkEffect:
-                {
-                    RunForkEffect(forkEffect, sagaTask);
-                    return;
-                }
-                case JoinEffect joinEffect:
-                {
-                    await RunJoinEffect(joinEffect, sagaTask.Token);
-                    return;
-                }
+                yield return null;
+            }
+
+            foreach (var task in tasks)
+            {
+                task.Cancel();
             }
         }
 
-        private async UniTask RunAllEffect(IEffect effect, SagaTask parentSagaTask)
-        {
-            var tasks = ConvertEffectsTasks(effect, parentSagaTask);
-            await UniTask
-                .WhenAll(tasks)
-                .WithCancellation(parentSagaTask.Token);
-        }
-
-        private UniTask[] ConvertEffectsTasks(
+        private SagaTask[] ConvertEffectsTasks(
             IEffect effect,
-            SagaTask parentSagaTask,
-            ICollection<CancellationTokenSource> sources = null
+            SagaTask parentSagaTask
         )
         {
-            if (!effect.Combinator) return Array.Empty<UniTask>();
+            if (!effect.Combinator) return Array.Empty<SagaTask>();
             if (!(effect.Payload is ICombinatorEffectDescriptor descriptor)) throw new InvalidOperationException();
-
-            var tasks = descriptor.Effects.Select(async payloadEffect =>
+            var tasks = descriptor.Effects.Select(payloadEffect =>
             {
-                using var forkCts = new CancellationTokenSource();
-                var sagaTask = new SagaTask(forkCts, parentSagaTask);
-                AddDisposable(forkCts);
-                sources?.Add(forkCts);
+                return Run(InnerTask(), parentSagaTask);
 
-                try
+                IEnumerator InnerTask()
                 {
-                    await Run(payloadEffect, sagaTask);
-                }
-                catch (Exception e)
-                {
-                    sagaTask.SetError(e);
-                }
-                finally
-                {
-                    RemoveDisposable(forkCts);
-                    sources?.Remove(forkCts);
+                    yield return payloadEffect;
                 }
             }).ToArray();
             return tasks;
         }
 
-        private async UniTask RunRaceEffect(IEffect effect, SagaTask parentSagaTask)
+        private IEnumerator WaitRaceEffect(IEffect effect, SagaTask parentSagaTask)
         {
-            var sources = new List<CancellationTokenSource>();
-            var tasks = ConvertEffectsTasks(effect, parentSagaTask, sources);
-            await UniTask
-                .WhenAny(tasks)
-                .WithCancellation(parentSagaTask.Token);
-            foreach (var source in sources.ToArray())
+            SagaTask[] tasks;
+            try
             {
-                source.Cancel();
+                tasks = ConvertEffectsTasks(effect, parentSagaTask);
+            }
+            catch (Exception error)
+            {
+                parentSagaTask.SetError(error);
+                yield break;
+            }
+
+            while (!tasks.Any(task => task.IsCompleted || task.IsCanceled))
+            {
+                yield return null;
+            }
+
+            foreach (var task in tasks)
+            {
+                task.Cancel();
             }
         }
 
-        private static async UniTask RunCallEffect(CallEffect effect, CancellationToken token)
+        private IEnumerator WaitCallEffect(IEffect effect, SagaTask task)
         {
-            var value = await effect.Payload.Fn(effect.Payload.Args, token);
-            effect.Payload.SetResultValue?.Invoke(value);
+            if (!(effect.Payload is CallEffect.Descriptor descriptor))
+            {
+                task.SetError(new InvalidOperationException());
+                yield break;
+            }
+
+            var args = new[] { (object)task }.Concat(descriptor.Args).ToArray();
+            var effectsOrNull = descriptor.Fn(args);
+            yield return ConsumeEnumerator(effectsOrNull, task);
         }
 
-        private static void RunCancelEffect(CancelEffect effect, SagaTask sagaTask)
+        private static void RunCancelEffect(IEffect effect, SagaTask sagaTask)
         {
-            var task = effect.Payload.Task ?? sagaTask;
+            if (!(effect.Payload is CancelEffect.Descriptor descriptor))
+            {
+                sagaTask.SetError(new InvalidOperationException());
+                return;
+            }
+
+            var task = descriptor.Task ?? sagaTask;
             task.Cancel();
         }
 
-        private void RunSelectEffect(SelectEffect effect)
+        private void RunSelectEffect(IEffect effect, SagaTask task)
         {
-            var value = effect.Payload.Selector(_getState(), effect.Payload.Args);
-            effect.Payload.SetResultValue(value);
-        }
-
-        private void RunPutEffect(PutEffect effect)
-        {
-            _dispatch(effect.Payload.Action);
-        }
-
-        private async UniTask RunTakeEffect(TakeEffect effect, CancellationToken token)
-        {
-            await _subject.Where(effect.Payload.Pattern).ToUniTask(true, token);
-        }
-
-        private async void RunForkEffect(ForkEffect effect, SagaTask parentSagaTask)
-        {
-            if (!(effect.Payload.Context is InternalSaga saga)) throw new InvalidOperationException();
-            using var forkCts = new CancellationTokenSource();
-            var sagaTask = new SagaTask(forkCts, parentSagaTask);
-            AddDisposable(forkCts);
-            effect.Payload.SetResultValue?.Invoke(sagaTask);
-            try
+            if (!(effect.Payload is SelectEffect.Descriptor descriptor))
             {
-                await Run(saga(effect.Payload.Args), sagaTask);
+                task.SetError(new InvalidOperationException());
+                return;
             }
-            catch (Exception e)
+
+            var value = descriptor.Selector(_getState(), descriptor.Args);
+            descriptor.SetResultValue(value);
+        }
+
+        private void RunPutEffect(IEffect effect, SagaTask task)
+        {
+            if (!(effect.Payload is PutEffect.Descriptor descriptor))
             {
-                sagaTask.SetError(e);
+                task.SetError(new InvalidOperationException());
+                return;
             }
-            finally
+
+            _dispatch(descriptor.Action);
+        }
+
+        private IEnumerator WaitTakeEffect(IEffect effect, SagaTask task)
+        {
+            if (!(effect.Payload is TakeEffect.Descriptor descriptor))
             {
-                RemoveDisposable(forkCts);
+                task.SetError(new InvalidOperationException());
+                yield break;
+            }
+
+            var isTaken = false;
+            using (_subject.Where(descriptor.Pattern).Subscribe(new SimpleObserver<object>(_ => { isTaken = true; })))
+            {
+                while (!isTaken) yield return null;
             }
         }
 
-        private static async UniTask RunJoinEffect(JoinEffect effect, CancellationToken token)
+        private void RunForkEffect(IEffect effect, SagaTask parentSagaTask)
         {
-            if (!(effect.Payload.Context is SagaTask sagaTask)) throw new InvalidOperationException();
-            await UniTask.WaitUntil(() => sagaTask.IsCompleted, cancellationToken: token);
+            if (!(effect.Payload is ForkEffect.Descriptor descriptor))
+            {
+                parentSagaTask.SetError(new InvalidOperationException());
+                return;
+            }
+
+            if (!(descriptor.Context is InternalSaga saga))
+            {
+                parentSagaTask.SetError(new InvalidOperationException());
+                return;
+            }
+
+            var sagaTask = Run(saga(descriptor.Args), parentSagaTask);
+            descriptor.SetResultValue?.Invoke(sagaTask);
+        }
+
+        private static IEnumerator WaitJoinEffect(IEffect effect, SagaTask task)
+        {
+            if (!(effect.Payload is JoinEffect.Descriptor descriptor))
+            {
+                task.SetError(new InvalidOperationException());
+                yield break;
+            }
+
+            if (!(descriptor.Context is SagaTask sagaTask))
+            {
+                task.SetError(new InvalidOperationException());
+                yield break;
+            }
+
+            while (!sagaTask.IsCompleted && !sagaTask.IsCanceled)
+            {
+                yield return null;
+            }
+        }
+
+        private static IEnumerator WaitAsyncOperation(AsyncOperation asyncOperation)
+        {
+            while (!asyncOperation.isDone)
+            {
+                yield return null;
+            }
+        }
+
+        private static IEnumerator WaitWaitForSeconds(WaitForSeconds waitForSeconds)
+        {
+            var second = waitForSeconds.GetSeconds();
+            var elapsed = 0.0f;
+            while (true)
+            {
+                yield return null;
+
+                elapsed += Time.deltaTime;
+                if (elapsed >= second)
+                {
+                    break;
+                }
+            }
         }
 
         public void Dispose()
@@ -257,6 +407,38 @@ namespace UniSaga.Core
             }
 
             return disposables;
+        }
+
+        private class SimpleObserver<T> : IObserver<T>
+        {
+            private readonly Action _onCompleted;
+            private readonly Action<Exception> _onError;
+            private readonly Action<T> _onNext;
+
+            public SimpleObserver(
+                Action<T> onNext = null,
+                Action onCompleted = null,
+                Action<Exception> onError = null)
+            {
+                _onCompleted = onCompleted;
+                _onError = onError;
+                _onNext = onNext;
+            }
+
+            public void OnCompleted()
+            {
+                _onCompleted?.Invoke();
+            }
+
+            public void OnError(Exception error)
+            {
+                _onError?.Invoke(error);
+            }
+
+            public void OnNext(T value)
+            {
+                _onNext?.Invoke(value);
+            }
         }
     }
 }

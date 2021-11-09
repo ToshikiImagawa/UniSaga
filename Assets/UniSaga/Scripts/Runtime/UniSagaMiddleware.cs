@@ -1,11 +1,12 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Threading;
 using JetBrains.Annotations;
 using UniRedux;
 using UniSaga.Core;
+using UnityEngine;
 
 namespace UniSaga
 {
@@ -14,7 +15,6 @@ namespace UniSaga
         private Func<TState> _getState;
         private Func<object, object> _dispatch;
         private readonly Subject<object> _subject = new Subject<object>();
-        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         public Func<Dispatcher, Dispatcher> Middleware(IStore<TState> store)
         {
@@ -80,16 +80,12 @@ namespace UniSaga
             if (rootSaga == null) throw new InvalidOperationException();
             if (_getState == null) throw new InvalidOperationException();
             if (_dispatch == null) throw new InvalidOperationException();
-            if (_cancellationTokenSource.Token.IsCancellationRequested) return null;
-            var sagaTask = new SagaTask(_cancellationTokenSource);
-            Run(
+            return Run(
                 _getState,
                 _dispatch,
                 _subject,
-                sagaTask,
                 rootSaga(arguments ?? Array.Empty<object>())
             );
-            return sagaTask;
         }
 
         public void Dispose()
@@ -97,19 +93,15 @@ namespace UniSaga
             _subject?.Dispose();
         }
 
-        private static async void Run(
+        private static SagaTask Run(
             [NotNull] Func<TState> getState,
             [NotNull] Func<object, object> dispatch,
             [NotNull] IObservable<object> subject,
-            [NotNull] SagaTask sagaTask,
-            IEnumerator<IEffect> effects
+            IEnumerator effectsOrNull
         )
         {
-            using var runner = new EffectRunner<TState>(getState, dispatch, subject);
-            await runner.Run(
-                effects,
-                sagaTask
-            );
+            var runner = new EffectRunner<TState>(getState, dispatch, subject);
+            return runner.Run(effectsOrNull);
         }
     }
 

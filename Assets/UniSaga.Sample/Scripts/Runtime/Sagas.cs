@@ -1,15 +1,16 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
-using System.Collections.Generic;
+using System.Collections;
 using Cysharp.Threading.Tasks;
 using UniSaga.Sample.Services;
+using UniSaga.Threading;
 using UnityEngine;
 
 namespace UniSaga.Sample
 {
     public static class Sagas
     {
-        public static IEnumerator<IEffect> RootSaga()
+        public static IEnumerator RootSaga()
         {
             const string logPrefix = "<color=green>[RootSaga]</color>";
 
@@ -52,7 +53,7 @@ namespace UniSaga.Sample
             Debug.Log($"{logPrefix} After ForkSaga");
 
             Debug.Log($"{logPrefix} Wait 2s");
-            yield return Effects.Delay(2000);
+            yield return AsyncEffects.Delay(2000);
             Debug.Log($"{logPrefix} Put RestartAction");
             yield return Effects.Put(new RestartAction());
             Debug.Log($"{logPrefix} Wait for ForkTask to complete");
@@ -78,7 +79,7 @@ namespace UniSaga.Sample
             yield return Effects.Put(new StartAction());
         }
 
-        private static IEnumerator<IEffect> CheckUserId5Saga()
+        private static IEnumerator CheckUserId5Saga()
         {
             var selectReturnData = new ReturnData<(bool, int)>();
             yield return Effects.Select<SampleState, int, (bool, int)>(
@@ -90,7 +91,7 @@ namespace UniSaga.Sample
             Debug.Log(is5 ? "ID is 5" : $"ID is not 5 : {id}");
         }
 
-        private static IEnumerator<IEffect> GetUserSaga()
+        private static IEnumerator GetUserSaga()
         {
             var currentUserIdReturnData = new ReturnData<int>();
             yield return Effects.Select<SampleState, int>(
@@ -98,10 +99,10 @@ namespace UniSaga.Sample
                 currentUserIdReturnData
             );
             Debug.Log("GetUserIdTask start");
-            var getTaskReturnData = new ReturnData<(bool, int)>();
-            yield return Effects.Call(Api.GetUserIdTask,
+            yield return AsyncEffects.Call(
+                Api.GetUserIdTask,
                 currentUserIdReturnData.Value,
-                getTaskReturnData
+                out var getTaskReturnData
             );
             var (isError, id) = getTaskReturnData.Value;
             if (isError)
@@ -116,7 +117,7 @@ namespace UniSaga.Sample
             }
         }
 
-        private static IEnumerator<IEffect> ForkSaga()
+        private static IEnumerator ForkSaga()
         {
             const string logPrefix = "<color=blue>[ForkSaga]</color>";
             Debug.Log($"{logPrefix} Start ForkSaga");
@@ -130,24 +131,24 @@ namespace UniSaga.Sample
 
         private static int _takeEverySagaIndex;
 
-        private static IEnumerator<IEffect> TakeEverySaga()
+        private static IEnumerator TakeEverySaga()
         {
             var logPrefix = $"<color=red>[ForkSaga:{_takeEverySagaIndex}]</color>";
             _takeEverySagaIndex++;
             Debug.Log($"{logPrefix} Start TakeEverySaga");
 
             Debug.Log($"{logPrefix} Wait 1 frame");
-            yield return Effects.DelayFrame(1);
+            yield return AsyncEffects.DelayFrame(1);
             Debug.Log($"{logPrefix} End 1 frame");
 
             yield return Effects.Race(
-                Effects.Call(async token =>
+                AsyncEffects.Call(async token =>
                 {
                     Debug.Log($"{logPrefix} Race Call 1 Wait 2s");
                     await UniTask.Delay(2000, cancellationToken: token);
                     Debug.Log($"{logPrefix} Race Call 1 End");
                 }),
-                Effects.Call(async token =>
+                AsyncEffects.Call(async token =>
                 {
                     Debug.Log($"{logPrefix} Race Call 2 Wait 4s");
                     await UniTask.Delay(4000, cancellationToken: token);
@@ -157,7 +158,7 @@ namespace UniSaga.Sample
             Debug.Log($"{logPrefix} End ForkSaga");
         }
 
-        private static IEnumerator<IEffect> TakeLatestSaga()
+        private static IEnumerator TakeLatestSaga()
         {
             var logPrefix = $"<color=red>[ForkSaga:{_takeEverySagaIndex}]</color>";
             _takeEverySagaIndex++;
@@ -168,13 +169,13 @@ namespace UniSaga.Sample
             Debug.Log($"{logPrefix} End 1 frame");
 
             yield return Effects.All(
-                Effects.Call(async token =>
+                AsyncEffects.Call(async token =>
                 {
                     Debug.Log($"{logPrefix} All Call 1 Wait 2s");
                     await UniTask.Delay(2000, cancellationToken: token);
                     Debug.Log($"{logPrefix} All Call 1 End");
                 }),
-                Effects.Call(async token =>
+                AsyncEffects.Call(async token =>
                 {
                     Debug.Log($"{logPrefix} All Call 2 Wait 4s");
                     await UniTask.Delay(4000, cancellationToken: token);

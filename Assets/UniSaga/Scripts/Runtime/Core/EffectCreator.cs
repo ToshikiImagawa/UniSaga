@@ -1,232 +1,99 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
-using System.Threading;
-using Cysharp.Threading.Tasks;
+using System.Collections;
+using System.Linq;
 using JetBrains.Annotations;
 
 namespace UniSaga.Core
 {
     internal static class CallEffectCreator
     {
-        private static readonly object Unit = new object();
-
         public static CallEffect Create(
-            [NotNull] Func<CancellationToken, UniTask> function
+            [NotNull] Func<SagaTask, IEnumerator> function
         )
         {
-            return new CallEffect(new CallEffect.CallEffectDescriptor(
-                async (p, token) =>
-                {
-                    await function(token);
-                    return Unit;
-                },
-                Array.Empty<object>(),
-                null
-            ));
-        }
-
-        public static CallEffect Create(
-            [NotNull] Func<object[], CancellationToken, UniTask> function,
-            [NotNull] object[] args
-        )
-        {
-            return new CallEffect(new CallEffect.CallEffectDescriptor(
-                async (p, token) =>
-                {
-                    await function(p, token);
-                    return Unit;
-                },
-                args,
-                null
-            ));
+            return Create(
+                (_, task) => function(task),
+                Array.Empty<object>()
+            );
         }
 
         public static CallEffect Create<TArgument>(
-            Func<TArgument, CancellationToken, UniTask> function,
-            TArgument arg
+            [NotNull] Func<TArgument, SagaTask, IEnumerator> function,
+            [CanBeNull] TArgument arg
         )
         {
-            return new CallEffect(new CallEffect.CallEffectDescriptor(
-                async (p, token) =>
-                {
-                    await function((TArgument)p[0], token);
-                    return Unit;
-                },
-                new[] { (object)arg },
-                null
-            ));
-        }
-    }
-
-    internal static class CallEffectCreator<TReturnData>
-    {
-        public static CallEffect Create(
-            [NotNull] Func<object[], CancellationToken, UniTask<TReturnData>> function,
-            [NotNull] object[] args,
-            [CanBeNull] ReturnData<TReturnData> returnData
-        )
-        {
-            if (function == null) throw new InvalidOperationException();
-            Action<object> setResultValue = null;
-            if (returnData != null)
-            {
-                setResultValue = obj =>
-                {
-                    if (obj == null)
-                    {
-                        returnData.SetValue(default);
-                    }
-                    else
-                    {
-                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
-                        returnData.SetValue(value);
-                    }
-                };
-            }
-
-            return new CallEffect(new CallEffect.CallEffectDescriptor(
-                async (p, token) => await function(p, token),
-                args,
-                setResultValue
-            ));
-        }
-
-        public static CallEffect Create(
-            [NotNull] Func<CancellationToken, UniTask<TReturnData>> function,
-            [CanBeNull] ReturnData<TReturnData> returnData)
-        {
-            Action<object> setResultValue = null;
-            if (returnData != null)
-            {
-                setResultValue = obj =>
-                {
-                    if (obj == null)
-                    {
-                        returnData.SetValue(default);
-                    }
-                    else
-                    {
-                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
-                        returnData.SetValue(value);
-                    }
-                };
-            }
-
-            return new CallEffect(new CallEffect.CallEffectDescriptor(
-                async (p, token) => await function(token),
-                Array.Empty<object>(),
-                setResultValue
-            ));
-        }
-
-        public static CallEffect Create<TArgument>(
-            [NotNull] Func<TArgument, CancellationToken, UniTask<TReturnData>> function,
-            [CanBeNull] TArgument arg,
-            [CanBeNull] ReturnData<TReturnData> returnData
-        )
-        {
-            Action<object> setResultValue = null;
-            if (returnData != null)
-            {
-                setResultValue = obj =>
-                {
-                    if (obj == null)
-                    {
-                        returnData.SetValue(default);
-                    }
-                    else
-                    {
-                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
-                        returnData.SetValue(value);
-                    }
-                };
-            }
-
-            return new CallEffect(new CallEffect.CallEffectDescriptor(
-                async (p, token) => await function(
+            return Create(
+                (p, task) => function(
                     (TArgument)p[0],
-                    token
+                    task
                 ),
-                new[] { (object)arg },
-                setResultValue
-            ));
+                new[]
+                {
+                    (object)arg
+                }
+            );
         }
 
         public static CallEffect Create<TArgument1, TArgument2>(
-            [NotNull] Func<TArgument1, TArgument2, CancellationToken, UniTask<TReturnData>> function,
-            [CanBeNull] TArgument1 arg1, [CanBeNull] TArgument2 arg2,
-            [CanBeNull] ReturnData<TReturnData> returnData
+            [NotNull] Func<TArgument1, TArgument2, SagaTask, IEnumerator> function,
+            [CanBeNull] TArgument1 arg1,
+            [CanBeNull] TArgument2 arg2
         )
         {
-            Action<object> setResultValue = null;
-            if (returnData != null)
-            {
-                setResultValue = obj =>
-                {
-                    if (obj == null)
-                    {
-                        returnData.SetValue(default);
-                    }
-                    else
-                    {
-                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
-                        returnData.SetValue(value);
-                    }
-                };
-            }
-
-            return new CallEffect(new CallEffect.CallEffectDescriptor(
-                async (p, token) => await function(
+            return Create(
+                (p, task) => function(
                     (TArgument1)p[0],
                     (TArgument2)p[1],
-                    token
-                ), new[]
+                    task
+                ),
+                new[]
                 {
                     (object)arg1,
                     arg2
-                },
-                setResultValue)
+                }
             );
         }
 
         public static CallEffect Create<TArgument1, TArgument2, TArgument3>(
-            [NotNull] Func<TArgument1, TArgument2, TArgument3, CancellationToken, UniTask<TReturnData>> function,
-            [CanBeNull] TArgument1 arg1, [CanBeNull] TArgument2 arg2, [CanBeNull] TArgument3 arg3,
-            [CanBeNull] ReturnData<TReturnData> returnData
+            [NotNull] Func<TArgument1, TArgument2, TArgument3, SagaTask, IEnumerator> function,
+            [CanBeNull] TArgument1 arg1,
+            [CanBeNull] TArgument2 arg2,
+            [CanBeNull] TArgument3 arg3
         )
         {
-            Action<object> setResultValue = null;
-            if (returnData != null)
-            {
-                setResultValue = obj =>
-                {
-                    if (obj == null)
-                    {
-                        returnData.SetValue(default);
-                    }
-                    else
-                    {
-                        if (!(obj is TReturnData value)) throw new InvalidOperationException();
-                        returnData.SetValue(value);
-                    }
-                };
-            }
-
-            return new CallEffect(new CallEffect.CallEffectDescriptor(
-                async (p, token) => await function(
+            return Create(
+                (p, task) => function(
                     (TArgument1)p[0],
                     (TArgument2)p[1],
                     (TArgument3)p[2],
-                    token
-                ), new[]
+                    task
+                ),
+                new[]
                 {
                     (object)arg1,
                     arg2,
                     arg3
-                },
-                setResultValue)
+                }
             );
+        }
+
+        private static CallEffect Create(
+            [NotNull] Func<object[], SagaTask, IEnumerator> function,
+            [NotNull] object[] args
+        )
+        {
+            return new CallEffect(new CallEffect.Descriptor(
+                p =>
+                {
+                    var sagaTask = (SagaTask)p.First();
+                    var a = p.Skip(1).ToArray();
+                    return function(a, sagaTask);
+                },
+                args,
+                null
+            ));
         }
     }
 
@@ -234,7 +101,7 @@ namespace UniSaga.Core
     {
         public static CancelEffect Create([CanBeNull] SagaTask task)
         {
-            return new CancelEffect(new CancelEffect.CancelEffectDescriptor(task));
+            return new CancelEffect(new CancelEffect.Descriptor(task));
         }
     }
 
@@ -245,7 +112,7 @@ namespace UniSaga.Core
             [NotNull] ReturnData<TReturnData> returnData
         )
         {
-            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+            return new SelectEffect(new SelectEffect.Descriptor(
                 (state, param) => selector((TState)state),
                 Array.Empty<object>(),
                 obj =>
@@ -269,7 +136,7 @@ namespace UniSaga.Core
             [NotNull] params object[] args
         )
         {
-            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+            return new SelectEffect(new SelectEffect.Descriptor(
                 (state, param) => selector((TState)state, param),
                 args,
                 obj =>
@@ -293,7 +160,7 @@ namespace UniSaga.Core
             [NotNull] ReturnData<TReturnData> returnData
         )
         {
-            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+            return new SelectEffect(new SelectEffect.Descriptor(
                 (state, param) => selector((TState)state, (TArgument)param[0]),
                 new[] { (object)arg },
                 obj =>
@@ -317,7 +184,7 @@ namespace UniSaga.Core
             [NotNull] ReturnData<TReturnData> returnData
         )
         {
-            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+            return new SelectEffect(new SelectEffect.Descriptor(
                 (state, param) => selector(
                     (TState)state,
                     (TArgument1)param[0],
@@ -349,7 +216,7 @@ namespace UniSaga.Core
             [NotNull] ReturnData<TReturnData> returnData
         )
         {
-            return new SelectEffect(new SelectEffect.SelectEffectDescriptor(
+            return new SelectEffect(new SelectEffect.Descriptor(
                 (state, param) => selector(
                     (TState)state,
                     (TArgument1)param[0],
@@ -382,7 +249,7 @@ namespace UniSaga.Core
     {
         public static PutEffect Create(object action)
         {
-            return new PutEffect(new PutEffect.PutEffectDescriptor(action));
+            return new PutEffect(new PutEffect.Descriptor(action));
         }
     }
 
@@ -392,7 +259,7 @@ namespace UniSaga.Core
             [NotNull] Func<object, bool> pattern
         )
         {
-            return new TakeEffect(new TakeEffect.TakeEffectDescriptor(pattern));
+            return new TakeEffect(new TakeEffect.Descriptor(pattern));
         }
     }
 
@@ -421,7 +288,7 @@ namespace UniSaga.Core
                 };
             }
 
-            return new ForkEffect(new ForkEffect.ForkEffectDescriptor(
+            return new ForkEffect(new ForkEffect.Descriptor(
                 saga,
                 arguments,
                 setResultValue
@@ -433,7 +300,7 @@ namespace UniSaga.Core
     {
         public static JoinEffect Create([NotNull] SagaTask sagaTask)
         {
-            return new JoinEffect(new JoinEffect.JoinEffectDescriptor(sagaTask));
+            return new JoinEffect(new JoinEffect.Descriptor(sagaTask));
         }
     }
 
@@ -441,7 +308,7 @@ namespace UniSaga.Core
     {
         public static AllEffect Create([NotNull] IEffect[] effects)
         {
-            return new AllEffect(new AllEffect.AllEffectDescriptor(effects));
+            return new AllEffect(new AllEffect.Descriptor(effects));
         }
     }
 

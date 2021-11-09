@@ -1,65 +1,23 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
-using System.Collections.Generic;
-using System.Threading;
-using Cysharp.Threading.Tasks;
+using System.Collections;
 using JetBrains.Annotations;
 
 namespace UniSaga.Core
 {
-    internal delegate IEnumerator<IEffect> InternalSaga(params object[] arguments);
+    internal delegate IEnumerator InternalSaga(params object[] arguments);
 
-    internal abstract class CombinatorEffect<TPayload> : IEffect where TPayload : class
+    internal abstract class CombinatorEffect : IEffect
     {
         public bool Combinator => true;
-        [NotNull] public abstract TPayload Payload { get; }
-        object IEffect.Payload => Payload;
+        public abstract object Payload { get; }
     }
 
-    internal abstract class SimpleEffect<TPayload> : IEffect where TPayload : class
+    internal abstract class SimpleEffect : IEffect
     {
         public bool Combinator => false;
-        [NotNull] public abstract TPayload Payload { get; }
-        object IEffect.Payload => Payload;
-    }
-
-    internal interface ISelectEffectDescriptor
-    {
-        [NotNull] Func<object, object[], object> Selector { get; }
-        [NotNull] object[] Args { get; }
-        [NotNull] Action<object> SetResultValue { get; }
-    }
-
-    internal interface ICancelEffectDescriptor
-    {
-        [CanBeNull] SagaTask Task { get; }
-    }
-
-    internal interface ICallEffectDescriptor
-    {
-        [CanBeNull] object Context { get; }
-        [NotNull] Func<object[], CancellationToken, UniTask<object>> Fn { get; }
-        [NotNull] object[] Args { get; }
-        [CanBeNull] Action<object> SetResultValue { get; }
-    }
-
-    internal interface IPutEffectDescriptor
-    {
-        object Action { get; }
-    }
-
-    internal interface ITakeEffectDescriptor
-    {
-        Func<object, bool> Pattern { get; }
-    }
-
-    internal interface IForkEffectDescriptor : ICallEffectDescriptor
-    {
-    }
-
-    internal interface IJoinEffectDescriptor : ICallEffectDescriptor
-    {
+        public abstract object Payload { get; }
     }
 
     internal interface ICombinatorEffectDescriptor
@@ -67,24 +25,16 @@ namespace UniSaga.Core
         IEffect[] Effects { get; }
     }
 
-    internal interface IAllEffectDescriptor : ICombinatorEffectDescriptor
+    internal class RaceEffect : CombinatorEffect
     {
-    }
-
-    internal interface IRaceEffectDescriptor : ICombinatorEffectDescriptor
-    {
-    }
-
-    internal class RaceEffect : CombinatorEffect<IRaceEffectDescriptor>
-    {
-        public RaceEffect(IRaceEffectDescriptor payload)
+        public RaceEffect(RaceEffectDescriptor payload)
         {
             Payload = payload;
         }
 
-        public override IRaceEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class RaceEffectDescriptor : IRaceEffectDescriptor
+        public class RaceEffectDescriptor : ICombinatorEffectDescriptor
         {
             public RaceEffectDescriptor(IEffect[] effects)
             {
@@ -95,18 +45,18 @@ namespace UniSaga.Core
         }
     }
 
-    internal class AllEffect : CombinatorEffect<IAllEffectDescriptor>
+    internal class AllEffect : CombinatorEffect
     {
-        public AllEffect(IAllEffectDescriptor payload)
+        public AllEffect(Descriptor payload)
         {
             Payload = payload;
         }
 
-        public override IAllEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class AllEffectDescriptor : IAllEffectDescriptor
+        public class Descriptor : ICombinatorEffectDescriptor
         {
-            public AllEffectDescriptor(IEffect[] effects)
+            public Descriptor(IEffect[] effects)
             {
                 Effects = effects;
             }
@@ -115,74 +65,76 @@ namespace UniSaga.Core
         }
     }
 
-    internal class JoinEffect : SimpleEffect<IJoinEffectDescriptor>
+    internal class JoinEffect : SimpleEffect
     {
-        public JoinEffect(IJoinEffectDescriptor payload)
+        public JoinEffect(Descriptor payload)
         {
             Payload = payload;
         }
 
-        public override IJoinEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class JoinEffectDescriptor : IJoinEffectDescriptor
+        public class Descriptor : CallEffect.Descriptor
         {
-            public JoinEffectDescriptor(SagaTask sagaTask)
+            public Descriptor(SagaTask sagaTask) : base(
+                sagaTask,
+                a => Empty(),
+                Array.Empty<object>(),
+                null
+            )
             {
-                Context = sagaTask;
-                Fn = (a, t) => UniTask.Never<object>(t);
-                Args = Array.Empty<object>();
-                SetResultValue = null;
             }
 
-            public object Context { get; }
-            public Func<object[], CancellationToken, UniTask<object>> Fn { get; }
-            public object[] Args { get; }
-            public Action<object> SetResultValue { get; }
+            private static IEnumerator Empty()
+            {
+                yield break;
+            }
         }
     }
 
-    internal class ForkEffect : SimpleEffect<IForkEffectDescriptor>
+    internal class ForkEffect : SimpleEffect
     {
-        public ForkEffect([NotNull] IForkEffectDescriptor payload)
+        public ForkEffect([NotNull] Descriptor payload)
         {
             Payload = payload;
         }
 
-        public override IForkEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class ForkEffectDescriptor : IForkEffectDescriptor
+        public class Descriptor : CallEffect.Descriptor
         {
-            public ForkEffectDescriptor(
+            public Descriptor(
                 [NotNull] object context,
                 [NotNull] object[] args,
                 [CanBeNull] Action<object> setResultValue
+            ) : base(
+                context,
+                a => Empty(),
+                args,
+                setResultValue
             )
             {
-                Context = context;
-                Fn = (a, t) => UniTask.Never<object>(t);
-                Args = args;
-                SetResultValue = setResultValue;
             }
 
-            public object Context { get; }
-            public Func<object[], CancellationToken, UniTask<object>> Fn { get; }
-            public object[] Args { get; }
-            public Action<object> SetResultValue { get; }
+            private static IEnumerator Empty()
+            {
+                yield break;
+            }
         }
     }
 
-    internal class TakeEffect : SimpleEffect<ITakeEffectDescriptor>
+    internal class TakeEffect : SimpleEffect
     {
-        public TakeEffect([NotNull] ITakeEffectDescriptor payload)
+        public TakeEffect([NotNull] Descriptor payload)
         {
             Payload = payload;
         }
 
-        public override ITakeEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class TakeEffectDescriptor : ITakeEffectDescriptor
+        public class Descriptor
         {
-            public TakeEffectDescriptor(Func<object, bool> pattern)
+            public Descriptor(Func<object, bool> pattern)
             {
                 Pattern = pattern;
             }
@@ -191,18 +143,18 @@ namespace UniSaga.Core
         }
     }
 
-    internal class PutEffect : SimpleEffect<IPutEffectDescriptor>
+    internal class PutEffect : SimpleEffect
     {
-        public PutEffect([NotNull] IPutEffectDescriptor innerPayload)
+        public PutEffect([NotNull] Descriptor innerPayload)
         {
             Payload = innerPayload;
         }
 
-        public override IPutEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class PutEffectDescriptor : IPutEffectDescriptor
+        public class Descriptor
         {
-            public PutEffectDescriptor(object action)
+            public Descriptor(object action)
             {
                 Action = action;
             }
@@ -211,18 +163,18 @@ namespace UniSaga.Core
         }
     }
 
-    internal class SelectEffect : SimpleEffect<ISelectEffectDescriptor>
+    internal class SelectEffect : SimpleEffect
     {
-        public SelectEffect([NotNull] ISelectEffectDescriptor descriptor)
+        public SelectEffect([NotNull] Descriptor descriptor)
         {
             Payload = descriptor;
         }
 
-        public override ISelectEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class SelectEffectDescriptor : ISelectEffectDescriptor
+        public class Descriptor
         {
-            public SelectEffectDescriptor(
+            public Descriptor(
                 [NotNull] Func<object, object[], object> selector,
                 [NotNull] object[] args,
                 [NotNull] Action<object> setResultValue)
@@ -232,48 +184,48 @@ namespace UniSaga.Core
                 SetResultValue = setResultValue;
             }
 
-            public Func<object, object[], object> Selector { get; }
-            public object[] Args { get; }
-            public Action<object> SetResultValue { get; }
+            [NotNull] public Func<object, object[], object> Selector { get; }
+            [NotNull] public object[] Args { get; }
+            [NotNull] public Action<object> SetResultValue { get; }
         }
     }
 
-    internal sealed class CancelEffect : SimpleEffect<ICancelEffectDescriptor>
+    internal sealed class CancelEffect : SimpleEffect
     {
-        public CancelEffect(ICancelEffectDescriptor payload)
+        public CancelEffect(Descriptor payload)
         {
             Payload = payload;
         }
 
-        public override ICancelEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class CancelEffectDescriptor : ICancelEffectDescriptor
+        public class Descriptor
+
         {
-            public CancelEffectDescriptor([CanBeNull] SagaTask task)
+            public Descriptor([CanBeNull] SagaTask task)
             {
                 Task = task;
             }
 
-            public SagaTask Task { get; }
+            [CanBeNull] public SagaTask Task { get; }
         }
     }
 
-    internal class CallEffect : SimpleEffect<ICallEffectDescriptor>
+    internal class CallEffect : SimpleEffect
     {
-        public CallEffect([NotNull] ICallEffectDescriptor descriptor)
+        public CallEffect([NotNull] Descriptor descriptor)
         {
             Payload = descriptor;
         }
 
-        public override ICallEffectDescriptor Payload { get; }
+        public override object Payload { get; }
 
-        public class CallEffectDescriptor : ICallEffectDescriptor
+        public class Descriptor
         {
-            public CallEffectDescriptor(
-                [NotNull] Func<object[], CancellationToken, UniTask<object>> fn,
+            public Descriptor(
+                [NotNull] Func<object[], IEnumerator> fn,
                 [NotNull] object[] args,
-                [CanBeNull] Action<object> setResultValue
-            )
+                [CanBeNull] Action<object> setResultValue)
             {
                 Context = null;
                 Fn = fn;
@@ -281,9 +233,9 @@ namespace UniSaga.Core
                 SetResultValue = setResultValue;
             }
 
-            public CallEffectDescriptor(
+            protected Descriptor(
                 [CanBeNull] object context,
-                [NotNull] Func<object[], CancellationToken, UniTask<object>> fn,
+                [NotNull] Func<object[], IEnumerator> fn,
                 [NotNull] object[] args,
                 [CanBeNull] Action<object> setResultValue
             )
@@ -294,10 +246,10 @@ namespace UniSaga.Core
                 SetResultValue = setResultValue;
             }
 
-            public object Context { get; }
-            public Func<object[], CancellationToken, UniTask<object>> Fn { get; }
-            public object[] Args { get; }
-            public Action<object> SetResultValue { get; }
+            [CanBeNull] public object Context { get; }
+            [NotNull] public Func<object[], IEnumerator> Fn { get; }
+            [NotNull] public object[] Args { get; }
+            [CanBeNull] public Action<object> SetResultValue { get; }
         }
     }
 }

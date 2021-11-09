@@ -1,9 +1,8 @@
 {
-    "name": "UniSaga.Sample",
+    "name": "UniSaga.Threading",
     "rootNamespace": "",
     "references": [
         "GUID:82fa4a73e4a924ff69b1952f0f3f7ca3",
-        "GUID:068477fc1d1534d6e820c2a37aa9d358",
         "GUID:1ab4a4227bd94f44dab6604279a2817e",
         "GUID:f51ebe6a0ceec4240a699833d6309b23"
     ],
