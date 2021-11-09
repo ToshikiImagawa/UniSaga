@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using JetBrains.Annotations;
@@ -10,15 +9,11 @@ using UnityEngine;
 
 namespace UniSaga.Core
 {
-    internal class EffectRunner<TState> : IDisposable
+    internal class EffectRunner<TState>
     {
         [NotNull] private readonly Func<TState> _getState;
         [NotNull] private readonly Func<object, object> _dispatch;
         [NotNull] private readonly IObservable<object> _subject;
-
-        private bool _isDisposed;
-        private readonly object _disposablesLock = new object();
-        [NotNull] private readonly List<IDisposable> _disposables = new List<IDisposable>();
 
         public EffectRunner(
             [NotNull] Func<TState> getState,
@@ -39,17 +34,12 @@ namespace UniSaga.Core
         private SagaTask Run([NotNull] IEnumerator effectsOrNull, [CanBeNull] SagaTask parentSagaTask)
         {
             var cancellationTokenSource = new CancellationTokenSource();
-            var sagaTask = new SagaTask(cancellationTokenSource, parentSagaTask);
-            AddDisposable(cancellationTokenSource);
-            sagaTask.Coroutine = UniSagaRunner.Instance.StartCoroutine(Inner());
-            return sagaTask;
+            return new SagaTask(cancellationTokenSource, Inner, parentSagaTask);
 
-            IEnumerator Inner()
+            IEnumerator Inner(SagaTask sagaTask)
             {
                 yield return ConsumeEnumerator(effectsOrNull, sagaTask);
                 while (!sagaTask.TryComplete()) yield return null;
-
-                RemoveDisposable(cancellationTokenSource);
             }
         }
 
@@ -58,8 +48,6 @@ namespace UniSaga.Core
             SagaTask sagaTask
         )
         {
-            if (_isDisposed) yield break;
-
             while (effectsOrNull.MoveNext())
             {
                 if (sagaTask.IsCanceled) yield break;
@@ -363,50 +351,6 @@ namespace UniSaga.Core
                     break;
                 }
             }
-        }
-
-        public void Dispose()
-        {
-            if (_isDisposed) return;
-            _isDisposed = true;
-            foreach (var disposable in GetDisposables())
-            {
-                disposable?.Dispose();
-            }
-        }
-
-        private void AddDisposable(IDisposable disposable)
-        {
-            if (_isDisposed)
-            {
-                disposable?.Dispose();
-                return;
-            }
-
-            lock (_disposablesLock)
-            {
-                _disposables.Add(disposable);
-            }
-        }
-
-        private void RemoveDisposable(IDisposable disposable)
-        {
-            lock (_disposablesLock)
-            {
-                _disposables.Remove(disposable);
-            }
-        }
-
-        private IEnumerable<IDisposable> GetDisposables()
-        {
-            IDisposable[] disposables;
-            lock (_disposablesLock)
-            {
-                disposables = _disposables.ToArray();
-                _disposables.Clear();
-            }
-
-            return disposables;
         }
 
         private class SimpleObserver<T> : IObserver<T>

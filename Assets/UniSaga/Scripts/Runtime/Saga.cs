@@ -25,32 +25,43 @@ namespace UniSaga
         TArgument3 argument3
     );
 
-    public sealed class SagaTask : IDisposable
+    public sealed class SagaTask : CustomYieldInstruction, IDisposable
     {
         [CanBeNull] private CancellationTokenSource _cancellationTokenSource;
+        [NotNull] private readonly Coroutine _coroutine;
         [NotNull] private readonly SagaTask _rootTask;
         private readonly List<SagaTask> _childTasks = new List<SagaTask>();
         private readonly object _lock = new object();
         private bool _disposed;
         private readonly ErrorObserver _errorObserver = new ErrorObserver();
 
-        internal SagaTask(CancellationTokenSource cancellationTokenSource, SagaTask parentTask = null)
+        internal SagaTask(
+            CancellationTokenSource cancellationTokenSource,
+            Func<SagaTask, IEnumerator> saga,
+            SagaTask parentTask = null
+        )
         {
+            if (parentTask != null)
+            {
+                if (parentTask.IsError || parentTask.IsCanceled || parentTask.IsCompleted)
+                    throw new InvalidOperationException();
+                parentTask._rootTask.SetChildTask(this);
+            }
+
             _cancellationTokenSource = cancellationTokenSource;
             IsRootSagaTask = parentTask == null;
             _rootTask = parentTask?._rootTask ?? this;
-            if (parentTask == null) return;
-            if (parentTask.IsError || parentTask.IsCanceled || parentTask.IsCompleted)
-                throw new InvalidOperationException();
-            parentTask._rootTask.SetChildTask(this);
+
+            _coroutine = UniSagaRunner.Instance.StartCoroutine(saga(this));
         }
 
-        [CanBeNull] internal Coroutine Coroutine { get; set; }
         public IObservable<Exception> Error => _errorObserver;
         public bool IsRootSagaTask { get; }
         public bool IsCompleted { get; private set; }
         public bool IsCanceled { get; private set; }
         public bool IsError { get; private set; }
+
+        public override bool keepWaiting => !IsCanceled || !IsCompleted || !IsError;
         internal CancellationToken Token => _cancellationTokenSource?.Token ?? CancellationToken.None;
 
         internal bool TryComplete()
@@ -77,7 +88,7 @@ namespace UniSaga
             if (IsCompleted) return;
             IsCanceled = true;
             _cancellationTokenSource?.Cancel();
-            if (Coroutine != null) UniSagaRunner.Instance.StopCoroutine(Coroutine);
+            UniSagaRunner.Instance.StopCoroutine(_coroutine);
             if (IsRootSagaTask)
             {
                 SagaTask[] tasks;

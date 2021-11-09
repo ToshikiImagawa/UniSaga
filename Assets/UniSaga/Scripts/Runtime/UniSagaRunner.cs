@@ -1,6 +1,7 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System.Collections;
+using JetBrains.Annotations;
 using UnityEngine;
 
 namespace UniSaga
@@ -10,6 +11,7 @@ namespace UniSaga
         private static UniSagaRunner _instance;
         private static readonly object Lock = new object();
 
+        [NotNull]
         internal static UniSagaRunner Instance
         {
             get

@@ -2,11 +2,9 @@
 
 using System;
 using System.Collections;
-using System.Threading;
 using JetBrains.Annotations;
 using UniRedux;
 using UniSaga.Core;
-using UnityEngine;
 
 namespace UniSaga
 {
