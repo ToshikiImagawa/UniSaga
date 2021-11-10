@@ -29,7 +29,6 @@ MonoBehaviour:
     m_Url: http://0.0.0.0:4873
     m_Scopes:
     - com.comcreate-info
-    - com.torisoup.pun2task
     m_IsDefault: 0
     m_Capabilities: 0
   - m_Id: scoped:package.openupm.com
@@ -49,7 +48,6 @@ MonoBehaviour:
       m_Url: http://0.0.0.0:4873
       m_Scopes:
       - com.comcreate-info
-      - com.torisoup.pun2task
       m_IsDefault: 0
       m_Capabilities: 0
     m_Modified: 0
@@ -57,5 +55,4 @@ MonoBehaviour:
     m_Url: http://0.0.0.0:4873
     m_Scopes:
     - com.comcreate-info
-    - com.torisoup.pun2task
     m_SelectedScopeIndex: 0

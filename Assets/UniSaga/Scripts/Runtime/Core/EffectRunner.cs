@@ -38,8 +38,11 @@ namespace UniSaga.Core
 
             IEnumerator Inner(SagaTask sagaTask)
             {
-                yield return ConsumeEnumerator(effectsOrNull, sagaTask);
-                while (!sagaTask.TryComplete()) yield return null;
+                var enumerator = ConsumeEnumerator(effectsOrNull, sagaTask);
+                while (enumerator.MoveNext())
+                {
+                    yield return enumerator;
+                }
             }
         }
 
@@ -161,12 +164,12 @@ namespace UniSaga.Core
             }
         }
 
-        private IEnumerator WaitAllEffect(IEffect effect, SagaTask parentSagaTask)
+        private IEnumerator WaitAllEffect(AllEffect effect, SagaTask parentSagaTask)
         {
             SagaTask[] tasks;
             try
             {
-                tasks = ConvertEffectsTasks(effect, parentSagaTask);
+                tasks = ConvertEffectsTasks(effect.EffectDescriptor, parentSagaTask);
             }
             catch (Exception error)
             {
@@ -186,12 +189,10 @@ namespace UniSaga.Core
         }
 
         private SagaTask[] ConvertEffectsTasks(
-            IEffect effect,
+            CombinatorEffectDescriptor descriptor,
             SagaTask parentSagaTask
         )
         {
-            if (!effect.Combinator) return Array.Empty<SagaTask>();
-            if (!(effect.Payload is ICombinatorEffectDescriptor descriptor)) throw new InvalidOperationException();
             var tasks = descriptor.Effects.Select(payloadEffect =>
             {
                 return Run(InnerTask(), parentSagaTask);
@@ -204,12 +205,12 @@ namespace UniSaga.Core
             return tasks;
         }
 
-        private IEnumerator WaitRaceEffect(IEffect effect, SagaTask parentSagaTask)
+        private IEnumerator WaitRaceEffect(RaceEffect effect, SagaTask parentSagaTask)
         {
             SagaTask[] tasks;
             try
             {
-                tasks = ConvertEffectsTasks(effect, parentSagaTask);
+                tasks = ConvertEffectsTasks(effect.EffectDescriptor, parentSagaTask);
             }
             catch (Exception error)
             {
@@ -228,62 +229,37 @@ namespace UniSaga.Core
             }
         }
 
-        private IEnumerator WaitCallEffect(IEffect effect, SagaTask task)
+        private IEnumerator WaitCallEffect(CallEffect effect, SagaTask task)
         {
-            if (!(effect.Payload is CallEffect.Descriptor descriptor))
-            {
-                task.SetError(new InvalidOperationException());
-                yield break;
-            }
-
+            var descriptor = effect.EffectDescriptor;
             var args = new[] { (object)task }.Concat(descriptor.Args).ToArray();
             var effectsOrNull = descriptor.Fn(args);
             yield return ConsumeEnumerator(effectsOrNull, task);
         }
 
-        private static void RunCancelEffect(IEffect effect, SagaTask sagaTask)
+        private static void RunCancelEffect(CancelEffect effect, SagaTask sagaTask)
         {
-            if (!(effect.Payload is CancelEffect.Descriptor descriptor))
-            {
-                sagaTask.SetError(new InvalidOperationException());
-                return;
-            }
-
+            var descriptor = effect.EffectDescriptor;
             var task = descriptor.Task ?? sagaTask;
             task.Cancel();
         }
 
-        private void RunSelectEffect(IEffect effect, SagaTask task)
+        private void RunSelectEffect(SelectEffect effect, SagaTask task)
         {
-            if (!(effect.Payload is SelectEffect.Descriptor descriptor))
-            {
-                task.SetError(new InvalidOperationException());
-                return;
-            }
-
+            var descriptor = effect.EffectDescriptor;
             var value = descriptor.Selector(_getState(), descriptor.Args);
             descriptor.SetResultValue(value);
         }
 
-        private void RunPutEffect(IEffect effect, SagaTask task)
+        private void RunPutEffect(PutEffect effect, SagaTask task)
         {
-            if (!(effect.Payload is PutEffect.Descriptor descriptor))
-            {
-                task.SetError(new InvalidOperationException());
-                return;
-            }
-
+            var descriptor = effect.EffectDescriptor;
             _dispatch(descriptor.Action);
         }
 
-        private IEnumerator WaitTakeEffect(IEffect effect, SagaTask task)
+        private IEnumerator WaitTakeEffect(TakeEffect effect, SagaTask task)
         {
-            if (!(effect.Payload is TakeEffect.Descriptor descriptor))
-            {
-                task.SetError(new InvalidOperationException());
-                yield break;
-            }
-
+            var descriptor = effect.EffectDescriptor;
             var isTaken = false;
             using (_subject.Where(descriptor.Pattern).Subscribe(new SimpleObserver<object>(_ => { isTaken = true; })))
             {
@@ -291,14 +267,9 @@ namespace UniSaga.Core
             }
         }
 
-        private void RunForkEffect(IEffect effect, SagaTask parentSagaTask)
+        private void RunForkEffect(ForkEffect effect, SagaTask parentSagaTask)
         {
-            if (!(effect.Payload is ForkEffect.Descriptor descriptor))
-            {
-                parentSagaTask.SetError(new InvalidOperationException());
-                return;
-            }
-
+            var descriptor = effect.EffectDescriptor;
             if (!(descriptor.Context is InternalSaga saga))
             {
                 parentSagaTask.SetError(new InvalidOperationException());
@@ -309,14 +280,9 @@ namespace UniSaga.Core
             descriptor.SetResultValue?.Invoke(sagaTask);
         }
 
-        private static IEnumerator WaitJoinEffect(IEffect effect, SagaTask task)
+        private static IEnumerator WaitJoinEffect(JoinEffect effect, SagaTask task)
         {
-            if (!(effect.Payload is JoinEffect.Descriptor descriptor))
-            {
-                task.SetError(new InvalidOperationException());
-                yield break;
-            }
-
+            var descriptor = effect.EffectDescriptor;
             if (!(descriptor.Context is SagaTask sagaTask))
             {
                 task.SetError(new InvalidOperationException());

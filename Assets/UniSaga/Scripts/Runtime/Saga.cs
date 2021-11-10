@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using JetBrains.Annotations;
+using UniSaga.Plugin;
 using UniSystem.Reactive.Disposables;
 using UnityEngine;
 
@@ -28,7 +29,9 @@ namespace UniSaga
     public sealed class SagaTask : CustomYieldInstruction, IDisposable
     {
         [CanBeNull] private CancellationTokenSource _cancellationTokenSource;
-        [NotNull] private readonly Coroutine _coroutine;
+
+        //[NotNull] private readonly Coroutine _coroutine;
+        [NotNull] private readonly SagaCoroutine _sagaCoroutine;
         [NotNull] private readonly SagaTask _rootTask;
         private readonly List<SagaTask> _childTasks = new List<SagaTask>();
         private readonly object _lock = new object();
@@ -52,43 +55,68 @@ namespace UniSaga
             IsRootSagaTask = parentTask == null;
             _rootTask = parentTask?._rootTask ?? this;
 
-            _coroutine = UniSagaRunner.Instance.StartCoroutine(saga(this));
+            _sagaCoroutine = SagaCoroutine.StartCoroutine(InnerEnumerator(), ExceptionCallback);
+
+            //_coroutine = UniSagaRunner.Instance.StartCoroutine(saga(this));
+
+            void ExceptionCallback(Exception error)
+            {
+                _errorObserver.OnNext(error);
+                if (IsRootSagaTask)
+                {
+                    SagaTask[] tasks;
+                    lock (_lock)
+                    {
+                        tasks = _childTasks.ToArray();
+                        _childTasks.Clear();
+                    }
+
+                    foreach (var task in tasks)
+                    {
+                        task.SetError(error);
+                    }
+                }
+                else
+                {
+                    _rootTask.RemoveChildTask(this);
+                }
+            }
+
+            IEnumerator InnerEnumerator()
+            {
+                yield return saga(this);
+
+                while (true)
+                {
+                    lock (_lock)
+                    {
+                        if (_childTasks.Count == 0) break;
+                    }
+
+                    yield return null;
+                }
+
+                if (!IsRootSagaTask) _rootTask.RemoveChildTask(this);
+            }
         }
+
 
         public IObservable<Exception> Error => _errorObserver;
         public bool IsRootSagaTask { get; }
-        public bool IsCompleted { get; private set; }
-        public bool IsCanceled { get; private set; }
-        public bool IsError { get; private set; }
+        public bool IsCompleted => _sagaCoroutine.IsCompleted;
+        public bool IsCanceled => _sagaCoroutine.IsCanceled;
+        public bool IsError => _sagaCoroutine.IsError;
 
         public override bool keepWaiting => !IsCanceled || !IsCompleted || !IsError;
         internal CancellationToken Token => _cancellationTokenSource?.Token ?? CancellationToken.None;
-
-        internal bool TryComplete()
-        {
-            if (IsError) return true;
-            if (IsCanceled) return true;
-            if (IsCompleted) return true;
-            SagaTask rootTask;
-            lock (_lock)
-            {
-                if (_childTasks.Count != 0) return IsCompleted;
-                rootTask = _rootTask;
-                IsCompleted = true;
-                _cancellationTokenSource = null;
-            }
-
-            if (rootTask != this) rootTask.RemoveChildTask(this);
-            return IsCompleted;
-        }
 
         internal void Cancel()
         {
             if (IsError) return;
             if (IsCompleted) return;
-            IsCanceled = true;
             _cancellationTokenSource?.Cancel();
-            UniSagaRunner.Instance.StopCoroutine(_coroutine);
+            _sagaCoroutine.RequestCancel();
+            //UniSagaRunner.Instance.StopCoroutine(_coroutine);
             if (IsRootSagaTask)
             {
                 SagaTask[] tasks;
@@ -118,26 +146,7 @@ namespace UniSaga
                 return;
             }
 
-            IsError = true;
-            _errorObserver.OnNext(error);
-            if (IsRootSagaTask)
-            {
-                SagaTask[] tasks;
-                lock (_lock)
-                {
-                    tasks = _childTasks.ToArray();
-                    _childTasks.Clear();
-                }
-
-                foreach (var task in tasks)
-                {
-                    task.SetError(error);
-                }
-            }
-            else
-            {
-                _rootTask.RemoveChildTask(this);
-            }
+            _sagaCoroutine.SetError(error);
         }
 
         private void SetChildTask(SagaTask childTask)

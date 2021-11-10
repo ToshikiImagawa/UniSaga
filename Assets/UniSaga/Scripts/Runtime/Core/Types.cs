@@ -11,68 +11,51 @@ namespace UniSaga.Core
     internal abstract class CombinatorEffect : IEffect
     {
         public bool Combinator => true;
-        public abstract object Payload { get; }
     }
 
     internal abstract class SimpleEffect : IEffect
     {
         public bool Combinator => false;
-        public abstract object Payload { get; }
     }
 
-    internal interface ICombinatorEffectDescriptor
+    internal sealed class CombinatorEffectDescriptor
     {
-        IEffect[] Effects { get; }
+        public CombinatorEffectDescriptor(IEffect[] effects)
+        {
+            Effects = effects;
+        }
+
+        public IEffect[] Effects { get; }
     }
 
-    internal class RaceEffect : CombinatorEffect
+    internal sealed class RaceEffect : CombinatorEffect
     {
-        public RaceEffect(RaceEffectDescriptor payload)
+        public RaceEffect(CombinatorEffectDescriptor payload)
         {
-            Payload = payload;
+            EffectDescriptor = payload;
         }
 
-        public override object Payload { get; }
-
-        public class RaceEffectDescriptor : ICombinatorEffectDescriptor
-        {
-            public RaceEffectDescriptor(IEffect[] effects)
-            {
-                Effects = effects;
-            }
-
-            public IEffect[] Effects { get; }
-        }
+        public CombinatorEffectDescriptor EffectDescriptor { get; }
     }
 
-    internal class AllEffect : CombinatorEffect
+    internal sealed class AllEffect : CombinatorEffect
     {
-        public AllEffect(Descriptor payload)
+        public AllEffect(CombinatorEffectDescriptor payload)
         {
-            Payload = payload;
+            EffectDescriptor = payload;
         }
 
-        public override object Payload { get; }
-
-        public class Descriptor : ICombinatorEffectDescriptor
-        {
-            public Descriptor(IEffect[] effects)
-            {
-                Effects = effects;
-            }
-
-            public IEffect[] Effects { get; }
-        }
+        public CombinatorEffectDescriptor EffectDescriptor { get; }
     }
 
-    internal class JoinEffect : SimpleEffect
+    internal sealed class JoinEffect : SimpleEffect
     {
         public JoinEffect(Descriptor payload)
         {
-            Payload = payload;
+            EffectDescriptor = payload;
         }
 
-        public override object Payload { get; }
+        public Descriptor EffectDescriptor { get; }
 
         public class Descriptor : CallEffect.Descriptor
         {
@@ -92,14 +75,14 @@ namespace UniSaga.Core
         }
     }
 
-    internal class ForkEffect : SimpleEffect
+    internal sealed class ForkEffect : SimpleEffect
     {
         public ForkEffect([NotNull] Descriptor payload)
         {
-            Payload = payload;
+            EffectDescriptor = payload;
         }
 
-        public override object Payload { get; }
+        public Descriptor EffectDescriptor { get; }
 
         public class Descriptor : CallEffect.Descriptor
         {
@@ -123,14 +106,14 @@ namespace UniSaga.Core
         }
     }
 
-    internal class TakeEffect : SimpleEffect
+    internal sealed class TakeEffect : SimpleEffect
     {
         public TakeEffect([NotNull] Descriptor payload)
         {
-            Payload = payload;
+            EffectDescriptor = payload;
         }
 
-        public override object Payload { get; }
+        public Descriptor EffectDescriptor { get; }
 
         public class Descriptor
         {
@@ -143,14 +126,14 @@ namespace UniSaga.Core
         }
     }
 
-    internal class PutEffect : SimpleEffect
+    internal sealed class PutEffect : SimpleEffect
     {
         public PutEffect([NotNull] Descriptor innerPayload)
         {
-            Payload = innerPayload;
+            EffectDescriptor = innerPayload;
         }
 
-        public override object Payload { get; }
+        public Descriptor EffectDescriptor { get; }
 
         public class Descriptor
         {
@@ -163,14 +146,14 @@ namespace UniSaga.Core
         }
     }
 
-    internal class SelectEffect : SimpleEffect
+    internal sealed class SelectEffect : SimpleEffect
     {
         public SelectEffect([NotNull] Descriptor descriptor)
         {
-            Payload = descriptor;
+            EffectDescriptor = descriptor;
         }
 
-        public override object Payload { get; }
+        public Descriptor EffectDescriptor { get; }
 
         public class Descriptor
         {
@@ -194,10 +177,10 @@ namespace UniSaga.Core
     {
         public CancelEffect(Descriptor payload)
         {
-            Payload = payload;
+            EffectDescriptor = payload;
         }
 
-        public override object Payload { get; }
+        public Descriptor EffectDescriptor { get; }
 
         public class Descriptor
 
@@ -215,10 +198,10 @@ namespace UniSaga.Core
     {
         public CallEffect([NotNull] Descriptor descriptor)
         {
-            Payload = descriptor;
+            EffectDescriptor = descriptor;
         }
 
-        public override object Payload { get; }
+        public Descriptor EffectDescriptor { get; }
 
         public class Descriptor
         {

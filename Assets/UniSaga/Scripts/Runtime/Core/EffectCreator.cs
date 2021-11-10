@@ -308,7 +308,7 @@ namespace UniSaga.Core
     {
         public static AllEffect Create([NotNull] IEffect[] effects)
         {
-            return new AllEffect(new AllEffect.Descriptor(effects));
+            return new AllEffect(new CombinatorEffectDescriptor(effects));
         }
     }
 
@@ -316,7 +316,7 @@ namespace UniSaga.Core
     {
         public static RaceEffect Create([NotNull] IEffect[] effects)
         {
-            return new RaceEffect(new RaceEffect.RaceEffectDescriptor(effects));
+            return new RaceEffect(new CombinatorEffectDescriptor(effects));
         }
     }
 }
