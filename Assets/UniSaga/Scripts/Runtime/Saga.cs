@@ -28,9 +28,7 @@ namespace UniSaga
 
     public sealed class SagaTask : CustomYieldInstruction, IDisposable
     {
-        [CanBeNull] private CancellationTokenSource _cancellationTokenSource;
-
-        //[NotNull] private readonly Coroutine _coroutine;
+        [CanBeNull] private readonly CancellationTokenSource _cancellationTokenSource;
         [NotNull] private readonly SagaCoroutine _sagaCoroutine;
         [NotNull] private readonly SagaTask _rootTask;
         private readonly List<SagaTask> _childTasks = new List<SagaTask>();

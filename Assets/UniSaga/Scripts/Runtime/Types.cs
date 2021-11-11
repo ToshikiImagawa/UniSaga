@@ -4,7 +4,6 @@ namespace UniSaga
 {
     public interface IEffect
     {
-        bool Combinator { get; }
     }
 
     public sealed class ReturnData<T>
