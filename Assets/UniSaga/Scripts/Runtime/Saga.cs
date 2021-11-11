@@ -57,8 +57,6 @@ namespace UniSaga
 
             _sagaCoroutine = SagaCoroutine.StartCoroutine(InnerEnumerator(), ExceptionCallback);
 
-            //_coroutine = UniSagaRunner.Instance.StartCoroutine(saga(this));
-
             void ExceptionCallback(Exception error)
             {
                 _errorObserver.OnNext(error);
@@ -116,7 +114,6 @@ namespace UniSaga
             if (IsCompleted) return;
             _cancellationTokenSource?.Cancel();
             _sagaCoroutine.RequestCancel();
-            //UniSagaRunner.Instance.StopCoroutine(_coroutine);
             if (IsRootSagaTask)
             {
                 SagaTask[] tasks;

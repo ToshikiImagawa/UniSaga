@@ -16,12 +16,11 @@ using PlayerLoopType = UnityEngine.Experimental.PlayerLoop;
 using UnityEditor;
 #endif
 
-
 namespace UniSaga.Plugin
 {
     internal static class UniSagaLoopRunners
     {
-        public struct UniSagaLoopRunnerUpdate
+        public struct UniSagaDirectorUpdate
         {
         }
     }
@@ -67,16 +66,23 @@ namespace UniSaga.Plugin
 
         private static void Initialize(ref PlayerLoopSystem playerLoop)
         {
-            var uniSagaLoopRunnerUpdateType = typeof(UniSagaLoopRunners.UniSagaLoopRunnerUpdate);
+            var uniSagaLoopRunnerUpdateType = typeof(UniSagaLoopRunners.UniSagaDirectorUpdate);
             var copyList = playerLoop.subSystemList;
             var i = FindLoopSystemIndex(copyList, typeof(PlayerLoopType.Update));
-            copyList[i].subSystemList = InsertRunner(copyList[i], uniSagaLoopRunnerUpdateType);
+            copyList[i].subSystemList = InsertRunner(
+                copyList[i],
+                uniSagaLoopRunnerUpdateType,
+                _runner = new PlayerLoopRunner()
+            );
             playerLoop.subSystemList = copyList;
             PlayerLoop.SetPlayerLoop(playerLoop);
         }
 
-        private static PlayerLoopSystem[] InsertRunner(PlayerLoopSystem updateLoopSystem,
-            Type uniSagaLoopRunnerUpdateType)
+        private static PlayerLoopSystem[] InsertRunner(
+            PlayerLoopSystem updateLoopSystem,
+            [NotNull] Type uniSagaLoopRunnerUpdateType,
+            [NotNull] PlayerLoopRunner runner
+        )
         {
 #if UNITY_EDITOR
             EditorApplication.playModeStateChanged += (state) =>
@@ -89,17 +95,18 @@ namespace UniSaga.Plugin
                 _runner.Clear();
             };
 #endif
-            var source = updateLoopSystem.subSystemList
-                .Where(system => system.GetType() != uniSagaLoopRunnerUpdateType).ToArray();
-            var dest = new PlayerLoopSystem[source.Length + 1];
-            Array.Copy(source, 0, dest, 1, source.Length);
-            _runner = new PlayerLoopRunner();
-            dest[0] = new PlayerLoopSystem()
+            var runnerLoop = new PlayerLoopSystem()
             {
                 type = uniSagaLoopRunnerUpdateType,
-                updateDelegate = _runner.Run
+                updateDelegate = runner.Run
             };
-            return dest;
+            var source = updateLoopSystem.subSystemList
+                .Where(system => system.GetType() != uniSagaLoopRunnerUpdateType).ToArray();
+            var dest = new List<PlayerLoopSystem>(source);
+            var i = dest.FindIndex(x => x.type.Name == "ScriptRunDelayedTasks");
+            if (i < 0) throw new InvalidOperationException();
+            dest.Insert(i + 1, runnerLoop);
+            return dest.ToArray();
         }
 
         private static int FindLoopSystemIndex(IList<PlayerLoopSystem> playerLoopList, Type systemType)
@@ -137,6 +144,33 @@ namespace UniSaga.Plugin
             }
 
             _runner?.Run();
+        }
+#endif
+
+#if UNITY_2019_3_OR_NEWER
+        public static void DumpCurrentPlayerLoop()
+        {
+            var playerLoop = PlayerLoop.GetCurrentPlayerLoop();
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"PlayerLoop List");
+            foreach (var header in playerLoop.subSystemList)
+            {
+                sb.AppendFormat("------{0}------", header.type.Name);
+                sb.AppendLine();
+                foreach (var subSystem in header.subSystemList)
+                {
+                    sb.AppendFormat("{0}", subSystem.type.Name);
+                    sb.AppendLine();
+
+                    if (subSystem.subSystemList != null)
+                    {
+                        Debug.LogWarning("More Subsystem:" + subSystem.subSystemList.Length);
+                    }
+                }
+            }
+
+            Debug.Log(sb.ToString());
         }
 #endif
     }

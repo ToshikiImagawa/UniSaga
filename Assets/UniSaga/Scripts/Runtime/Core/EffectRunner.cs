@@ -116,17 +116,17 @@ namespace UniSaga.Core
                             }
                             case SelectEffect selectEffect:
                             {
-                                RunSelectEffect(selectEffect, sagaTask);
+                                RunSelectEffect(selectEffect);
                                 break;
                             }
                             case PutEffect putEffect:
                             {
-                                RunPutEffect(putEffect, sagaTask);
+                                RunPutEffect(putEffect);
                                 break;
                             }
                             case TakeEffect takeEffect:
                             {
-                                yield return WaitTakeEffect(takeEffect, sagaTask);
+                                yield return WaitTakeEffect(takeEffect);
                                 break;
                             }
                             case ForkEffect forkEffect:
@@ -244,20 +244,20 @@ namespace UniSaga.Core
             task.Cancel();
         }
 
-        private void RunSelectEffect(SelectEffect effect, SagaTask task)
+        private void RunSelectEffect(SelectEffect effect)
         {
             var descriptor = effect.EffectDescriptor;
             var value = descriptor.Selector(_getState(), descriptor.Args);
             descriptor.SetResultValue(value);
         }
 
-        private void RunPutEffect(PutEffect effect, SagaTask task)
+        private void RunPutEffect(PutEffect effect)
         {
             var descriptor = effect.EffectDescriptor;
             _dispatch(descriptor.Action);
         }
 
-        private IEnumerator WaitTakeEffect(TakeEffect effect, SagaTask task)
+        private IEnumerator WaitTakeEffect(TakeEffect effect)
         {
             var descriptor = effect.EffectDescriptor;
             var isTaken = false;
