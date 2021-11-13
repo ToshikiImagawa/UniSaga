@@ -14,13 +14,13 @@ namespace UniSaga.Sample
         {
             const string logPrefix = "<color=green>[RootSaga]</color>";
 
-            var takeEveryTask = new ReturnData<SagaTask>();
+            var takeEveryCoroutine = new ReturnData<SagaCoroutine>();
             yield return Effects.TakeEvery(
                 action => action is StartAction,
                 TakeEverySaga,
-                takeEveryTask
+                takeEveryCoroutine
             );
-            var takeLatestTask = new ReturnData<SagaTask>();
+            var takeLatestTask = new ReturnData<SagaCoroutine>();
             yield return Effects.TakeLatest(
                 action => action is StartAction,
                 TakeLatestSaga,
@@ -48,8 +48,8 @@ namespace UniSaga.Sample
             yield return Effects.Take(action => action is RestartAction);
             Debug.Log($"{logPrefix} Run RestartAction");
             Debug.Log($"{logPrefix} Before ForkSaga");
-            var forkTask = new ReturnData<SagaTask>();
-            yield return Effects.Fork(ForkSaga, forkTask);
+            var forkCoroutine = new ReturnData<SagaCoroutine>();
+            yield return Effects.Fork(ForkSaga, forkCoroutine);
             Debug.Log($"{logPrefix} After ForkSaga");
 
             Debug.Log($"{logPrefix} Wait 2s");
@@ -57,7 +57,7 @@ namespace UniSaga.Sample
             Debug.Log($"{logPrefix} Put RestartAction");
             yield return Effects.Put(new RestartAction());
             Debug.Log($"{logPrefix} Wait for ForkTask to complete");
-            yield return Effects.Join(forkTask.Value);
+            yield return Effects.Join(forkCoroutine.Value);
             Debug.Log($"{logPrefix} ForkTask is complete");
 
             // UserIdの取得

@@ -12,7 +12,7 @@ namespace UniSaga
         #region Call
 
         public static IEffect Call(
-            Func<SagaTask, IEnumerator> function
+            Func<SagaCoroutine, IEnumerator> function
         )
         {
             if (function == null) throw new InvalidOperationException(nameof(function));
@@ -20,7 +20,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TArgument>(
-            Func<TArgument, SagaTask, IEnumerator> function,
+            Func<TArgument, SagaCoroutine, IEnumerator> function,
             TArgument arg
         )
         {
@@ -29,7 +29,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TArgument1, TArgument2>(
-            Func<TArgument1, TArgument2, SagaTask, IEnumerator> function,
+            Func<TArgument1, TArgument2, SagaCoroutine, IEnumerator> function,
             TArgument1 arg1, TArgument2 arg2
         )
         {
@@ -38,7 +38,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TArgument1, TArgument2, TArgument3>(
-            Func<TArgument1, TArgument2, TArgument3, SagaTask, IEnumerator> function,
+            Func<TArgument1, TArgument2, TArgument3, SagaCoroutine, IEnumerator> function,
             TArgument1 arg1, TArgument2 arg2, TArgument3 arg3
         )
         {
@@ -50,9 +50,9 @@ namespace UniSaga
 
         #region Cancel
 
-        public static IEffect Cancel(SagaTask task = null)
+        public static IEffect Cancel(SagaCoroutine coroutine = null)
         {
-            return CancelEffectCreator.Create(task);
+            return CancelEffectCreator.Create(coroutine);
         }
 
         #endregion
@@ -140,7 +140,7 @@ namespace UniSaga
 
         #region Fork
 
-        public static IEffect Fork(Saga saga, ReturnData<SagaTask> returnData = null)
+        public static IEffect Fork(Saga saga, ReturnData<SagaCoroutine> returnData = null)
         {
             return Fork(_ => saga(), returnData, Array.Empty<object>());
         }
@@ -148,7 +148,7 @@ namespace UniSaga
         public static IEffect Fork<TArgument>(
             Saga<TArgument> saga,
             TArgument argument,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return Fork(args => saga((TArgument)args[0]), returnData, argument);
@@ -158,7 +158,7 @@ namespace UniSaga
             Saga<TArgument1, TArgument2> saga,
             TArgument1 argument1,
             TArgument2 argument2,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return Fork(
@@ -177,7 +177,7 @@ namespace UniSaga
             TArgument1 argument1,
             TArgument2 argument2,
             TArgument3 argument3,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return Fork(
@@ -195,7 +195,7 @@ namespace UniSaga
 
         internal static IEffect Fork(
             InternalSaga saga,
-            ReturnData<SagaTask> returnData = null,
+            ReturnData<SagaCoroutine> returnData = null,
             params object[] arguments)
         {
             if (saga == null) throw new InvalidOperationException(nameof(saga));
@@ -206,7 +206,7 @@ namespace UniSaga
 
         #region Join
 
-        public static IEffect Join(SagaTask sagaTask)
+        public static IEffect Join(SagaCoroutine sagaTask)
         {
             if (sagaTask == null) throw new InvalidOperationException(nameof(sagaTask));
             return JoinEffectCreator.Create(sagaTask);
@@ -219,7 +219,7 @@ namespace UniSaga
         public static IEffect TakeEvery(
             Func<object, bool> pattern,
             Saga worker,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeEvery(
@@ -234,7 +234,7 @@ namespace UniSaga
             Func<object, bool> pattern,
             Saga<TArgument> worker,
             TArgument argument,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeEvery(
@@ -252,7 +252,7 @@ namespace UniSaga
             Saga<TArgument1, TArgument2> worker,
             TArgument1 argument1,
             TArgument2 argument2,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeEvery(
@@ -273,7 +273,7 @@ namespace UniSaga
             TArgument1 argument1,
             TArgument2 argument2,
             TArgument3 argument3,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeEvery(
@@ -293,7 +293,7 @@ namespace UniSaga
         private static IEffect TakeEvery(
             Func<object, bool> pattern,
             InternalSaga worker,
-            ReturnData<SagaTask> returnData = null,
+            ReturnData<SagaCoroutine> returnData = null,
             params object[] arguments
         )
         {
@@ -320,7 +320,7 @@ namespace UniSaga
         public static IEffect TakeLatest(
             Func<object, bool> pattern,
             Saga worker,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeLatest(
@@ -335,7 +335,7 @@ namespace UniSaga
             Func<object, bool> pattern,
             Saga<TArgument> worker,
             TArgument argument,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeLatest(
@@ -353,7 +353,7 @@ namespace UniSaga
             Saga<TArgument1, TArgument2> worker,
             TArgument1 argument1,
             TArgument2 argument2,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeLatest(
@@ -374,7 +374,7 @@ namespace UniSaga
             TArgument1 argument1,
             TArgument2 argument2,
             TArgument3 argument3,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeLatest(
@@ -394,7 +394,7 @@ namespace UniSaga
         private static IEffect TakeLatest(
             Func<object, bool> pattern,
             InternalSaga worker,
-            ReturnData<SagaTask> returnData = null,
+            ReturnData<SagaCoroutine> returnData = null,
             params object[] arguments
         )
         {
@@ -442,11 +442,11 @@ namespace UniSaga
         {
             return Call(InnerTask, millisecondsDelay);
 
-            static IEnumerator InnerTask(int millisecondsDelay, SagaTask task)
+            static IEnumerator InnerTask(int millisecondsDelay, SagaCoroutine coroutine)
             {
                 if (millisecondsDelay < 0)
                 {
-                    task.SetError(new ArgumentOutOfRangeException(
+                    coroutine.SetError(new ArgumentOutOfRangeException(
                         $"Delay does not allow minus {nameof(millisecondsDelay)}. {nameof(millisecondsDelay)}:{millisecondsDelay}"
                     ));
                     yield break;
@@ -460,7 +460,7 @@ namespace UniSaga
         {
             return Call(InnerTask, delayFrameCount);
 
-            static IEnumerator InnerTask(int delayFrameCount, SagaTask task)
+            static IEnumerator InnerTask(int delayFrameCount, SagaCoroutine task)
             {
                 if (delayFrameCount < 0)
                 {

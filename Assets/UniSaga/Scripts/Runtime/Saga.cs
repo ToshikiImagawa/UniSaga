@@ -1,8 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using JetBrains.Annotations;
+using UniSaga.Core;
 using UniSaga.Plugin;
 using UniSystem.Reactive.Disposables;
 using UnityEngine;
@@ -26,152 +28,179 @@ namespace UniSaga
         TArgument3 argument3
     );
 
-    public sealed class SagaTask : CustomYieldInstruction, IDisposable
+    public sealed class SagaCoroutine : IPlayerLoopItem
     {
-        [CanBeNull] private readonly CancellationTokenSource _cancellationTokenSource;
-        [NotNull] private readonly SagaCoroutine _sagaCoroutine;
-        [NotNull] private readonly SagaTask _rootTask;
-        private readonly List<SagaTask> _childTasks = new List<SagaTask>();
-        private readonly object _lock = new object();
-        private bool _disposed;
-        private readonly ErrorObserver _errorObserver = new ErrorObserver();
+        [NotNull] private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+        [NotNull] private readonly List<SagaCoroutine> _childCoroutines = new List<SagaCoroutine>();
+        [NotNull] private readonly SagaCoroutine _rootCoroutine;
+        [NotNull] private readonly IEffectRunner _effectRunner;
+        [NotNull] private readonly IEnumerator _enumerator;
+        [NotNull] private readonly ErrorObserver _errorObserver = new ErrorObserver();
+        private bool _requestCancel;
 
-        internal SagaTask(
-            CancellationTokenSource cancellationTokenSource,
-            Func<SagaTask, IEnumerator> saga,
-            SagaTask parentTask = null
+        private SagaCoroutine(
+            [NotNull] IEffectRunner effectRunner,
+            IEnumerator enumerator
         )
         {
-            if (parentTask != null)
-            {
-                if (parentTask.IsError || parentTask.IsCanceled || parentTask.IsCompleted)
-                    throw new InvalidOperationException();
-                parentTask._rootTask.SetChildTask(this);
-            }
-
-            _cancellationTokenSource = cancellationTokenSource;
-            IsRootSagaTask = parentTask == null;
-            _rootTask = parentTask?._rootTask ?? this;
-
-            _sagaCoroutine = SagaCoroutine.StartCoroutine(InnerEnumerator(), ExceptionCallback);
-
-            void ExceptionCallback(Exception error)
-            {
-                _errorObserver.OnNext(error);
-                if (IsRootSagaTask)
-                {
-                    SagaTask[] tasks;
-                    lock (_lock)
-                    {
-                        tasks = _childTasks.ToArray();
-                        _childTasks.Clear();
-                    }
-
-                    foreach (var task in tasks)
-                    {
-                        task.SetError(error);
-                    }
-                }
-                else
-                {
-                    _rootTask.RemoveChildTask(this);
-                }
-            }
-
-            IEnumerator InnerEnumerator()
-            {
-                yield return saga(this);
-
-                while (true)
-                {
-                    lock (_lock)
-                    {
-                        if (_childTasks.Count == 0) break;
-                    }
-
-                    yield return null;
-                }
-
-                if (!IsRootSagaTask) _rootTask.RemoveChildTask(this);
-            }
+            _rootCoroutine = this;
+            _effectRunner = effectRunner;
+            _enumerator = InnerEnumerator(enumerator);
         }
 
+        private SagaCoroutine(
+            [NotNull] SagaCoroutine sagaCoroutine,
+            IEnumerator enumerator
+        )
+        {
+            _effectRunner = sagaCoroutine._effectRunner;
+            _enumerator = InnerEnumerator(enumerator);
+            _rootCoroutine = sagaCoroutine._rootCoroutine;
+            _rootCoroutine._childCoroutines.Add(this);
+        }
+
+        public bool IsError { get; private set; }
+        public bool IsCanceled { get; private set; }
+        public bool IsCompleted { get; private set; }
 
         public IObservable<Exception> Error => _errorObserver;
-        public bool IsRootSagaTask { get; }
-        public bool IsCompleted => _sagaCoroutine.IsCompleted;
-        public bool IsCanceled => _sagaCoroutine.IsCanceled;
-        public bool IsError => _sagaCoroutine.IsError;
+        internal CancellationToken Token => _cancellationTokenSource.Token;
 
-        public override bool keepWaiting => !IsCanceled || !IsCompleted || !IsError;
-        internal CancellationToken Token => _cancellationTokenSource?.Token ?? CancellationToken.None;
-
-        internal void Cancel()
+        internal void RequestCancel()
         {
-            if (IsError) return;
-            if (IsCompleted) return;
-            _cancellationTokenSource?.Cancel();
-            _sagaCoroutine.RequestCancel();
-            if (IsRootSagaTask)
+            _requestCancel = true;
+        }
+
+        internal void SetError(Exception error)
+        {
+            IsError = true;
+            _errorObserver.OnNext(error);
+        }
+
+        bool IPlayerLoopItem.MoveNext()
+        {
+            if (IsCompleted || IsCanceled || IsError) return false;
+            if (_requestCancel)
             {
-                SagaTask[] tasks;
-                lock (_lock)
+                IsCanceled = true;
+                _cancellationTokenSource.Cancel();
+                return false;
+            }
+
+            try
+            {
+                if (_enumerator.MoveNext()) return true;
+            }
+            catch (Exception error)
+            {
+                SetError(error);
+                return false;
+            }
+
+            IsCompleted = true;
+            return false;
+        }
+
+        internal static SagaCoroutine StartCoroutine(
+            [NotNull] IEffectRunner effectRunner,
+            [NotNull] IEnumerator enumerator
+        )
+        {
+            var coroutine = new SagaCoroutine(effectRunner, enumerator);
+            PlayerLoopHelper.AddAction(coroutine);
+            return coroutine;
+        }
+
+        internal SagaCoroutine StartCoroutine([NotNull] IEnumerator enumerator)
+        {
+            var coroutine = new SagaCoroutine(this, enumerator);
+            PlayerLoopHelper.AddAction(coroutine);
+            return coroutine;
+        }
+
+        private IEnumerator InnerEnumerator(IEnumerator enumerator)
+        {
+            while (enumerator.MoveNext())
+            {
+                var current = enumerator.Current;
+                switch (current)
                 {
-                    tasks = _childTasks.ToArray();
-                    _childTasks.Clear();
-                }
+                    case null:
+                        yield return null;
+                        break;
+                    case CustomYieldInstruction cyi:
+                    {
+                        while (cyi.keepWaiting)
+                        {
+                            yield return null;
+                        }
 
-                foreach (var task in tasks)
+                        break;
+                    }
+                    case YieldInstruction yieldInstruction:
+                    {
+                        switch (yieldInstruction)
+                        {
+                            case AsyncOperation ao:
+                                yield return WaitAsyncOperation(ao);
+                                break;
+                            case WaitForSeconds wfs:
+                                yield return WaitWaitForSeconds(wfs);
+                                break;
+                            default:
+                                SetError(new NotSupportedException(
+                                    $"{yieldInstruction.GetType().Name} is not supported."
+                                ));
+                                yield break;
+                        }
+
+                        break;
+                    }
+                    case IEffect effect:
+                        yield return _effectRunner.RunEffect(effect, this);
+                        break;
+                    case IEnumerator e:
+                        var ne = InnerEnumerator(e);
+                        while (ne.MoveNext())
+                        {
+                            yield return null;
+                        }
+
+                        break;
+                }
+            }
+
+            var childCoroutines = _childCoroutines.ToArray();
+            while (childCoroutines.Any(c => !c.IsCompleted && c.IsCanceled && !c.IsError))
+            {
+                yield return null;
+            }
+
+            _rootCoroutine._childCoroutines.Remove(this);
+        }
+
+        private static IEnumerator WaitAsyncOperation(AsyncOperation asyncOperation)
+        {
+            while (!asyncOperation.isDone)
+            {
+                yield return null;
+            }
+        }
+
+        private static IEnumerator WaitWaitForSeconds(WaitForSeconds waitForSeconds)
+        {
+            var second = waitForSeconds.GetSeconds();
+            var elapsed = 0.0f;
+            while (true)
+            {
+                yield return null;
+
+                elapsed += Time.deltaTime;
+                if (elapsed >= second)
                 {
-                    task.Cancel();
+                    break;
                 }
             }
-            else
-            {
-                _rootTask.RemoveChildTask(this);
-            }
-        }
-
-        internal void SetError([NotNull] Exception error)
-        {
-            if (error is OperationCanceledException)
-            {
-                if (IsCanceled) return;
-                Cancel();
-                return;
-            }
-
-            _sagaCoroutine.SetError(error);
-        }
-
-        private void SetChildTask(SagaTask childTask)
-        {
-            lock (_lock)
-            {
-                if (_childTasks.Contains(childTask)) throw new InvalidOperationException();
-                _childTasks.Add(childTask);
-            }
-        }
-
-        private void RemoveChildTask(SagaTask childTask)
-        {
-            if (IsError) return;
-            if (IsCanceled) return;
-            if (IsCompleted) return;
-            lock (_lock)
-            {
-                _childTasks.Remove(childTask);
-            }
-        }
-
-        public void Dispose()
-        {
-            if (_disposed) return;
-            _disposed = true;
-            if (IsCompleted) return;
-            if (IsError) return;
-            if (IsCanceled) return;
-            Cancel();
         }
 
         private class ErrorObserver : IObservable<Exception>

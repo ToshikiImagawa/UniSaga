@@ -10,12 +10,10 @@ namespace UniSaga.Core
 
     internal abstract class CombinatorEffect : IEffect
     {
-        public bool Combinator => true;
     }
 
     internal abstract class SimpleEffect : IEffect
     {
-        public bool Combinator => false;
     }
 
     internal sealed class CombinatorEffectDescriptor
@@ -59,8 +57,8 @@ namespace UniSaga.Core
 
         public class Descriptor : CallEffect.Descriptor
         {
-            public Descriptor(SagaTask sagaTask) : base(
-                sagaTask,
+            public Descriptor(SagaCoroutine sagaCoroutine) : base(
+                sagaCoroutine,
                 a => Empty(),
                 Array.Empty<object>(),
                 null
@@ -185,12 +183,12 @@ namespace UniSaga.Core
         public class Descriptor
 
         {
-            public Descriptor([CanBeNull] SagaTask task)
+            public Descriptor([CanBeNull] SagaCoroutine coroutine)
             {
-                Task = task;
+                Coroutine = coroutine;
             }
 
-            [CanBeNull] public SagaTask Task { get; }
+            [CanBeNull] public SagaCoroutine Coroutine { get; }
         }
     }
 

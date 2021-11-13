@@ -89,15 +89,15 @@ namespace UniSaga.Threading.Core
             return new CallEffect(new CallEffect.Descriptor(
                 p =>
                 {
-                    var sagaTask = (SagaTask)p.First();
+                    var sagaCoroutine = (SagaCoroutine)p.First();
                     var a = p.Skip(1).ToArray();
-                    return InnerTask(function(a, sagaTask.Token), sagaTask).ToCoroutine();
+                    return InnerTask(function(a, sagaCoroutine.Token), sagaCoroutine).ToCoroutine();
                 },
                 args,
                 null
             ));
 
-            static async UniTask InnerTask(UniTask uniTask, SagaTask sagaTask)
+            static async UniTask InnerTask(UniTask uniTask, SagaCoroutine sagaCoroutine)
             {
                 try
                 {
@@ -105,7 +105,7 @@ namespace UniSaga.Threading.Core
                 }
                 catch (Exception error)
                 {
-                    sagaTask.SetError(error);
+                    sagaCoroutine.SetError(error);
                 }
             }
         }
@@ -197,12 +197,13 @@ namespace UniSaga.Threading.Core
             [CanBeNull] ReturnData<TReturnData> returnData
         )
         {
+            var tokenSource = new CancellationTokenSource();
             return new CallEffect(new CallEffect.Descriptor(
                 p =>
                 {
-                    var sagaTask = (SagaTask)p.First();
+                    var sagaCoroutine = (SagaCoroutine)p.First();
                     var a = p.Skip(1).ToArray();
-                    return InnerTask(function(a, sagaTask.Token), returnData, sagaTask).ToCoroutine();
+                    return InnerTask(function(a, tokenSource.Token), returnData, sagaCoroutine).ToCoroutine();
                 },
                 args,
                 null
@@ -211,7 +212,7 @@ namespace UniSaga.Threading.Core
             static async UniTask InnerTask(
                 UniTask<TReturnData> task,
                 ReturnData<TReturnData> returnData,
-                SagaTask sagaTask
+                SagaCoroutine sagaCoroutine
             )
             {
                 try
@@ -220,7 +221,7 @@ namespace UniSaga.Threading.Core
                 }
                 catch (Exception error)
                 {
-                    sagaTask.SetError(error);
+                    sagaCoroutine.SetError(error);
                 }
             }
         }

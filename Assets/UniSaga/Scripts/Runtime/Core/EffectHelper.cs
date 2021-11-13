@@ -15,7 +15,7 @@ namespace UniSaga.Core
             var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException();
 
             var workerArgs = arguments.Length > 2 ? arguments.Skip(2).ToArray() : Array.Empty<object>();
-            var forkTask = new ReturnData<SagaTask>();
+            var forkCoroutine = new ReturnData<SagaCoroutine>();
             return FsmIterator(
                 new Dictionary<string, Func<(string nextState, Func<IEffect> getEffect)>>
                 {
@@ -27,10 +27,10 @@ namespace UniSaga.Core
                         "q2",
                         () =>
                         {
-                            var runningTask = forkTask.Value;
-                            return runningTask?.IsCompleted ?? true
+                            var runningCoroutine = forkCoroutine.Value;
+                            return runningCoroutine?.IsCompleted ?? true
                                 ? (nextState: "q1", getEffect: YFork)
-                                : (nextState: "q3", getEffect: YCancel(runningTask));
+                                : (nextState: "q3", getEffect: YCancel(runningCoroutine));
                         }
                     },
                     {
@@ -47,12 +47,12 @@ namespace UniSaga.Core
 
             IEffect YFork()
             {
-                return Effects.Fork(worker, forkTask, workerArgs);
+                return Effects.Fork(worker, forkCoroutine, workerArgs);
             }
 
-            Func<IEffect> YCancel(SagaTask task)
+            Func<IEffect> YCancel(SagaCoroutine coroutine)
             {
-                return () => Effects.Cancel(task);
+                return () => Effects.Cancel(coroutine);
             }
         }
 

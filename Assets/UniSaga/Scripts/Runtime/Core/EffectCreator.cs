@@ -10,7 +10,7 @@ namespace UniSaga.Core
     internal static class CallEffectCreator
     {
         public static CallEffect Create(
-            [NotNull] Func<SagaTask, IEnumerator> function
+            [NotNull] Func<SagaCoroutine, IEnumerator> function
         )
         {
             return Create(
@@ -20,7 +20,7 @@ namespace UniSaga.Core
         }
 
         public static CallEffect Create<TArgument>(
-            [NotNull] Func<TArgument, SagaTask, IEnumerator> function,
+            [NotNull] Func<TArgument, SagaCoroutine, IEnumerator> function,
             [CanBeNull] TArgument arg
         )
         {
@@ -37,7 +37,7 @@ namespace UniSaga.Core
         }
 
         public static CallEffect Create<TArgument1, TArgument2>(
-            [NotNull] Func<TArgument1, TArgument2, SagaTask, IEnumerator> function,
+            [NotNull] Func<TArgument1, TArgument2, SagaCoroutine, IEnumerator> function,
             [CanBeNull] TArgument1 arg1,
             [CanBeNull] TArgument2 arg2
         )
@@ -57,7 +57,7 @@ namespace UniSaga.Core
         }
 
         public static CallEffect Create<TArgument1, TArgument2, TArgument3>(
-            [NotNull] Func<TArgument1, TArgument2, TArgument3, SagaTask, IEnumerator> function,
+            [NotNull] Func<TArgument1, TArgument2, TArgument3, SagaCoroutine, IEnumerator> function,
             [CanBeNull] TArgument1 arg1,
             [CanBeNull] TArgument2 arg2,
             [CanBeNull] TArgument3 arg3
@@ -80,14 +80,14 @@ namespace UniSaga.Core
         }
 
         private static CallEffect Create(
-            [NotNull] Func<object[], SagaTask, IEnumerator> function,
+            [NotNull] Func<object[], SagaCoroutine, IEnumerator> function,
             [NotNull] object[] args
         )
         {
             return new CallEffect(new CallEffect.Descriptor(
                 p =>
                 {
-                    var sagaTask = (SagaTask)p.First();
+                    var sagaTask = (SagaCoroutine)p.First();
                     var a = p.Skip(1).ToArray();
                     return function(a, sagaTask);
                 },
@@ -99,9 +99,9 @@ namespace UniSaga.Core
 
     internal static class CancelEffectCreator
     {
-        public static CancelEffect Create([CanBeNull] SagaTask task)
+        public static CancelEffect Create([CanBeNull] SagaCoroutine coroutine)
         {
-            return new CancelEffect(new CancelEffect.Descriptor(task));
+            return new CancelEffect(new CancelEffect.Descriptor(coroutine));
         }
     }
 
@@ -267,7 +267,7 @@ namespace UniSaga.Core
     {
         public static ForkEffect Create(
             [NotNull] InternalSaga saga,
-            [CanBeNull] ReturnData<SagaTask> returnData,
+            [CanBeNull] ReturnData<SagaCoroutine> returnData,
             [NotNull] object[] arguments
         )
         {
@@ -282,7 +282,7 @@ namespace UniSaga.Core
                     }
                     else
                     {
-                        if (!(obj is SagaTask value)) throw new InvalidOperationException();
+                        if (!(obj is SagaCoroutine value)) throw new InvalidOperationException();
                         returnData.SetValue(value);
                     }
                 };
@@ -298,7 +298,7 @@ namespace UniSaga.Core
 
     internal static class JoinEffectCreator
     {
-        public static JoinEffect Create([NotNull] SagaTask sagaTask)
+        public static JoinEffect Create([NotNull] SagaCoroutine sagaTask)
         {
             return new JoinEffect(new JoinEffect.Descriptor(sagaTask));
         }
