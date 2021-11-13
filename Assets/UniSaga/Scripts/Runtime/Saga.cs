@@ -157,9 +157,17 @@ namespace UniSaga
                         break;
                     }
                     case IEffect effect:
-                        yield return _effectRunner.RunEffect(effect, this);
+                    {
+                        var ne = InnerEnumerator(_effectRunner.RunEffect(effect, this));
+                        while (ne.MoveNext())
+                        {
+                            yield return null;
+                        }
+
                         break;
+                    }
                     case IEnumerator e:
+                    {
                         var ne = InnerEnumerator(e);
                         while (ne.MoveNext())
                         {
@@ -167,6 +175,7 @@ namespace UniSaga
                         }
 
                         break;
+                    }
                 }
             }
 

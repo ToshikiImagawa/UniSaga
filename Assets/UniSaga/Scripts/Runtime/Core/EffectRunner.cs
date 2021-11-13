@@ -76,7 +76,7 @@ namespace UniSaga.Core
             }
         }
 
-        private IEnumerator WaitAllEffect(AllEffect effect, SagaCoroutine coroutine)
+        private static IEnumerator WaitAllEffect(AllEffect effect, SagaCoroutine coroutine)
         {
             SagaCoroutine[] coroutines;
             try
