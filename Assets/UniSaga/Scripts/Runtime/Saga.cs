@@ -2,11 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using JetBrains.Annotations;
+using UniRedux;
 using UniSaga.Core;
 using UniSaga.Plugin;
-using UniSystem.Reactive.Disposables;
 using UnityEngine;
 
 namespace UniSaga
@@ -30,12 +29,13 @@ namespace UniSaga
 
     public sealed class SagaCoroutine : IPlayerLoopItem
     {
-        [NotNull] private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         [NotNull] private readonly List<SagaCoroutine> _childCoroutines = new List<SagaCoroutine>();
         [NotNull] private readonly SagaCoroutine _rootCoroutine;
         [NotNull] private readonly IEffectRunner _effectRunner;
         [NotNull] private readonly IEnumerator _enumerator;
-        [NotNull] private readonly ErrorObserver _errorObserver = new ErrorObserver();
+        [NotNull] private readonly SingleObservable<Exception> _onError = new SingleObservable<Exception>();
+        [NotNull] private readonly SingleObservable<VoidMessage> _onCanceled = new SingleObservable<VoidMessage>();
+        [NotNull] private readonly SingleObservable<VoidMessage> _onCompleted = new SingleObservable<VoidMessage>();
         private bool _requestCancel;
 
         private SagaCoroutine(
@@ -53,9 +53,9 @@ namespace UniSaga
             IEnumerator enumerator
         )
         {
+            _rootCoroutine = sagaCoroutine._rootCoroutine;
             _effectRunner = sagaCoroutine._effectRunner;
             _enumerator = InnerEnumerator(enumerator);
-            _rootCoroutine = sagaCoroutine._rootCoroutine;
             _rootCoroutine._childCoroutines.Add(this);
         }
 
@@ -63,8 +63,9 @@ namespace UniSaga
         public bool IsCanceled { get; private set; }
         public bool IsCompleted { get; private set; }
 
-        public IObservable<Exception> Error => _errorObserver;
-        internal CancellationToken Token => _cancellationTokenSource.Token;
+        public IObservable<Exception> OnError => _onError;
+        public IObservable<VoidMessage> OnCanceled => _onCanceled;
+        public IObservable<VoidMessage> OnCompleted => _onCompleted;
 
         internal void RequestCancel()
         {
@@ -74,7 +75,7 @@ namespace UniSaga
         internal void SetError(Exception error)
         {
             IsError = true;
-            _errorObserver.OnNext(error);
+            _onError.OnNext(error);
         }
 
         bool IPlayerLoopItem.MoveNext()
@@ -82,8 +83,7 @@ namespace UniSaga
             if (IsCompleted || IsCanceled || IsError) return false;
             if (_requestCancel)
             {
-                IsCanceled = true;
-                _cancellationTokenSource.Cancel();
+                Cancel();
                 return false;
             }
 
@@ -97,7 +97,7 @@ namespace UniSaga
                 return false;
             }
 
-            IsCompleted = true;
+            Complete();
             return false;
         }
 
@@ -212,45 +212,16 @@ namespace UniSaga
             }
         }
 
-        private class ErrorObserver : IObservable<Exception>
+        private void Complete()
         {
-            private Exception _exception;
-            private readonly object _lock = new object();
-            private readonly List<IObserver<Exception>> _observers = new List<IObserver<Exception>>();
+            IsCompleted = true;
+            _onCompleted.OnNext(VoidMessage.Default);
+        }
 
-            public void OnNext([NotNull] Exception exception)
-            {
-                IObserver<Exception>[] observers;
-                lock (_lock)
-                {
-                    if (_exception != null) return;
-                    _exception = exception;
-                    observers = _observers.ToArray();
-                    _observers.Clear();
-                }
-
-                foreach (var observer in observers)
-                {
-                    observer.OnNext(_exception);
-                    observer.OnCompleted();
-                }
-            }
-
-            public IDisposable Subscribe(IObserver<Exception> observer)
-            {
-                lock (_lock)
-                {
-                    if (_exception == null)
-                    {
-                        _observers.Add(observer);
-                        return Disposable.Create(() => { _observers.Remove(observer); });
-                    }
-                }
-
-                observer.OnNext(_exception);
-                observer.OnCompleted();
-                return Disposable.Empty;
-            }
+        private void Cancel()
+        {
+            IsCanceled = true;
+            _onCanceled.OnNext(VoidMessage.Default);
         }
     }
 }

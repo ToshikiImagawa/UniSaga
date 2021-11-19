@@ -89,9 +89,11 @@ namespace UniSaga.Threading.Core
             return new CallEffect(new CallEffect.Descriptor(
                 p =>
                 {
+                    var cancellationTokenSource = new CancellationTokenSource();
                     var sagaCoroutine = (SagaCoroutine)p.First();
                     var a = p.Skip(1).ToArray();
-                    return InnerTask(function(a, sagaCoroutine.Token), sagaCoroutine).ToCoroutine();
+                    sagaCoroutine.OnCanceled.Subscribe(_ => { cancellationTokenSource.Cancel(); });
+                    return InnerTask(function(a, cancellationTokenSource.Token), sagaCoroutine).ToCoroutine();
                 },
                 args,
                 null
@@ -197,13 +199,14 @@ namespace UniSaga.Threading.Core
             [CanBeNull] ReturnData<TReturnData> returnData
         )
         {
-            var tokenSource = new CancellationTokenSource();
             return new CallEffect(new CallEffect.Descriptor(
                 p =>
                 {
+                    var cancellationTokenSource = new CancellationTokenSource();
                     var sagaCoroutine = (SagaCoroutine)p.First();
                     var a = p.Skip(1).ToArray();
-                    return InnerTask(function(a, tokenSource.Token), returnData, sagaCoroutine).ToCoroutine();
+                    sagaCoroutine.OnCanceled.Subscribe(_ => { cancellationTokenSource.Cancel(); });
+                    return InnerTask(function(a, cancellationTokenSource.Token), returnData, sagaCoroutine).ToCoroutine();
                 },
                 args,
                 null
