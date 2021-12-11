@@ -81,7 +81,7 @@ namespace UniSaga.Core
             SagaCoroutine[] coroutines;
             try
             {
-                coroutines = ConvertEffectsTasks(effect.EffectDescriptor, coroutine);
+                coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
             }
             catch (Exception error)
             {
@@ -89,27 +89,27 @@ namespace UniSaga.Core
                 yield break;
             }
 
-            while (!coroutines.All(task => task.IsCompleted || task.IsCanceled))
+            while (!coroutines.All(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled))
             {
                 yield return null;
             }
 
-            foreach (var task in coroutines)
+            foreach (var sagaCoroutine in coroutines)
             {
-                task.RequestCancel();
+                sagaCoroutine.RequestCancel();
             }
         }
 
-        private static SagaCoroutine[] ConvertEffectsTasks(
+        private static SagaCoroutine[] ConvertEffectCoroutines(
             CombinatorEffectDescriptor descriptor,
             SagaCoroutine coroutine
         )
         {
             var coroutines = descriptor.Effects.Select(payloadEffect =>
             {
-                return coroutine.StartCoroutine(InnerTask());
+                return coroutine.StartCoroutine(InnerCoroutine());
 
-                IEnumerator InnerTask()
+                IEnumerator InnerCoroutine()
                 {
                     yield return payloadEffect;
                 }
@@ -122,7 +122,7 @@ namespace UniSaga.Core
             SagaCoroutine[] coroutines;
             try
             {
-                coroutines = ConvertEffectsTasks(effect.EffectDescriptor, coroutine);
+                coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
             }
             catch (Exception error)
             {
@@ -130,7 +130,7 @@ namespace UniSaga.Core
                 yield break;
             }
 
-            while (!coroutines.Any(task => task.IsCompleted || task.IsCanceled))
+            while (!coroutines.Any(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled))
             {
                 yield return null;
             }

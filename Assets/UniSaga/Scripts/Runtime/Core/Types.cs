@@ -9,14 +9,6 @@ namespace UniSaga.Core
 {
     internal delegate IEnumerator InternalSaga(params object[] arguments);
 
-    internal abstract class CombinatorEffect : IEffect
-    {
-    }
-
-    internal abstract class SimpleEffect : IEffect
-    {
-    }
-
     internal sealed class CombinatorEffectDescriptor
     {
         public CombinatorEffectDescriptor(IEffect[] effects)
@@ -27,7 +19,7 @@ namespace UniSaga.Core
         public IEffect[] Effects { get; }
     }
 
-    internal sealed class RaceEffect : CombinatorEffect
+    internal sealed class RaceEffect : IEffect
     {
         public RaceEffect(CombinatorEffectDescriptor payload)
         {
@@ -37,7 +29,7 @@ namespace UniSaga.Core
         public CombinatorEffectDescriptor EffectDescriptor { get; }
     }
 
-    internal sealed class AllEffect : CombinatorEffect
+    internal sealed class AllEffect : IEffect
     {
         public AllEffect(CombinatorEffectDescriptor payload)
         {
@@ -47,7 +39,7 @@ namespace UniSaga.Core
         public CombinatorEffectDescriptor EffectDescriptor { get; }
     }
 
-    internal sealed class JoinEffect : SimpleEffect
+    internal sealed class JoinEffect : IEffect
     {
         public JoinEffect(Descriptor payload)
         {
@@ -74,7 +66,7 @@ namespace UniSaga.Core
         }
     }
 
-    internal sealed class ForkEffect : SimpleEffect
+    internal sealed class ForkEffect : IEffect
     {
         public ForkEffect([NotNull] Descriptor payload)
         {
@@ -105,7 +97,7 @@ namespace UniSaga.Core
         }
     }
 
-    internal sealed class TakeEffect : SimpleEffect
+    internal sealed class TakeEffect : IEffect
     {
         public TakeEffect([NotNull] Descriptor payload)
         {
@@ -125,7 +117,7 @@ namespace UniSaga.Core
         }
     }
 
-    internal sealed class PutEffect : SimpleEffect
+    internal sealed class PutEffect : IEffect
     {
         public PutEffect([NotNull] Descriptor innerPayload)
         {
@@ -145,7 +137,7 @@ namespace UniSaga.Core
         }
     }
 
-    internal sealed class SelectEffect : SimpleEffect
+    internal sealed class SelectEffect : IEffect
     {
         public SelectEffect([NotNull] Descriptor descriptor)
         {
@@ -172,7 +164,7 @@ namespace UniSaga.Core
         }
     }
 
-    internal sealed class CancelEffect : SimpleEffect
+    internal sealed class CancelEffect : IEffect
     {
         public CancelEffect(Descriptor payload)
         {
@@ -193,7 +185,7 @@ namespace UniSaga.Core
         }
     }
 
-    internal class CallEffect : SimpleEffect
+    internal class CallEffect : IEffect
     {
         public CallEffect([NotNull] Descriptor descriptor)
         {
@@ -235,10 +227,9 @@ namespace UniSaga.Core
         }
     }
 
-
     internal sealed class SingleReactiveProperty<T> : IObservable<T>
     {
-        private IObserver<T>[] _data;
+        private IObserver<T>[] _data = Array.Empty<IObserver<T>>();
         private bool _isCalled;
         private T _value;
         private readonly object _lockObj = new object();
@@ -273,7 +264,7 @@ namespace UniSaga.Core
             }
         }
 
-        IDisposable IObservable<T>.Subscribe(IObserver<T> observer)
+        public IDisposable Subscribe(IObserver<T> observer)
         {
             lock (_lockObj)
             {
