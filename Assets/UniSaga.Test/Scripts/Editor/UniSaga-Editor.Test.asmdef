@@ -1,12 +1,14 @@
 {
-    "name": "UniSaga.Test",
+    "name": "UniSaga-Editor.Test",
     "rootNamespace": "",
     "references": [
-        "GUID:27619889b8ba8c24980f49ee34dbb44a",
-        "GUID:82fa4a73e4a924ff69b1952f0f3f7ca3",
-        "GUID:f51ebe6a0ceec4240a699833d6309b23"
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner",
+        "UniSaga"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,

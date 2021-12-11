@@ -92,7 +92,8 @@ namespace UniSaga.Threading.Core
                     var cancellationTokenSource = new CancellationTokenSource();
                     var sagaCoroutine = (SagaCoroutine)p.First();
                     var a = p.Skip(1).ToArray();
-                    sagaCoroutine.OnCanceled.Subscribe(_ => { cancellationTokenSource.Cancel(); });
+                    sagaCoroutine.OnCanceled.Subscribe(
+                        new CancellationObserver<UniRedux.VoidMessage>(cancellationTokenSource));
                     return InnerTask(function(a, cancellationTokenSource.Token), sagaCoroutine).ToCoroutine();
                 },
                 args,
@@ -205,8 +206,10 @@ namespace UniSaga.Threading.Core
                     var cancellationTokenSource = new CancellationTokenSource();
                     var sagaCoroutine = (SagaCoroutine)p.First();
                     var a = p.Skip(1).ToArray();
-                    sagaCoroutine.OnCanceled.Subscribe(_ => { cancellationTokenSource.Cancel(); });
-                    return InnerTask(function(a, cancellationTokenSource.Token), returnData, sagaCoroutine).ToCoroutine();
+                    sagaCoroutine.OnCanceled.Subscribe(
+                        new CancellationObserver<UniRedux.VoidMessage>(cancellationTokenSource));
+                    return InnerTask(function(a, cancellationTokenSource.Token), returnData, sagaCoroutine)
+                        .ToCoroutine();
                 },
                 args,
                 null

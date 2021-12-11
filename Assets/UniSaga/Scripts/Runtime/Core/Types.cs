@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections;
+using System.Linq;
 using JetBrains.Annotations;
 
 namespace UniSaga.Core
@@ -231,6 +232,112 @@ namespace UniSaga.Core
             [NotNull] public Func<object[], IEnumerator> Fn { get; }
             [NotNull] public object[] Args { get; }
             [CanBeNull] public Action<object> SetResultValue { get; }
+        }
+    }
+
+
+    internal sealed class SingleReactiveProperty<T> : IObservable<T>
+    {
+        private IObserver<T>[] _data;
+        private bool _isCalled;
+        private T _value;
+        private readonly object _lockObj = new object();
+
+        /// <summary>
+        /// Value
+        /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
+        public T Value
+        {
+            get => _value;
+            set
+            {
+                IObserver<T>[] data;
+                lock (_lockObj)
+                {
+                    if (_isCalled)
+                    {
+                        throw new InvalidOperationException();
+                    }
+
+                    data = _data;
+                    _value = value;
+                    _isCalled = true;
+                }
+
+                foreach (var observer in data)
+                {
+                    observer.OnNext(value);
+                    observer.OnCompleted();
+                }
+            }
+        }
+
+        IDisposable IObservable<T>.Subscribe(IObserver<T> observer)
+        {
+            lock (_lockObj)
+            {
+                if (_isCalled)
+                {
+                    observer.OnNext(_value);
+                    observer.OnCompleted();
+                    return Disposable.Empty;
+                }
+
+                var newData = new IObserver<T>[_data.Length + 1];
+                Array.Copy(_data, newData, _data.Length);
+                newData[_data.Length] = observer;
+                _data = newData;
+            }
+
+            return new Subscription(this, observer);
+        }
+
+        private class Subscription : IDisposable
+        {
+            private readonly object _lockObj = new object();
+            private SingleReactiveProperty<T> _singleReactiveProperty;
+            private IObserver<T> _observer;
+            private bool _disposed;
+
+            public Subscription(SingleReactiveProperty<T> singleReactiveProperty, IObserver<T> observer)
+            {
+                _singleReactiveProperty = singleReactiveProperty;
+                _observer = observer;
+            }
+
+            public void Dispose()
+            {
+                lock (_lockObj)
+                {
+                    if (_disposed) return;
+                    _disposed = true;
+                    var singleReactiveProperty = _singleReactiveProperty;
+                    var observer = _observer;
+                    _singleReactiveProperty = null;
+                    _observer = null;
+
+                    lock (singleReactiveProperty._lockObj)
+                    {
+                        var data = singleReactiveProperty._data.ToList();
+                        data.Remove(observer);
+                        singleReactiveProperty._data = data.ToArray();
+                    }
+                }
+            }
+        }
+    }
+
+    internal class Disposable : IDisposable
+    {
+        public static readonly IDisposable Empty = new Disposable();
+
+        private Disposable()
+        {
+        }
+
+        public void Dispose()
+        {
         }
     }
 }

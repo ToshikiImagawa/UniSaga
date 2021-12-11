@@ -33,9 +33,14 @@ namespace UniSaga
         [NotNull] private readonly SagaCoroutine _rootCoroutine;
         [NotNull] private readonly IEffectRunner _effectRunner;
         [NotNull] private readonly IEnumerator _enumerator;
-        [NotNull] private readonly SingleObservable<Exception> _onError = new SingleObservable<Exception>();
-        [NotNull] private readonly SingleObservable<VoidMessage> _onCanceled = new SingleObservable<VoidMessage>();
-        [NotNull] private readonly SingleObservable<VoidMessage> _onCompleted = new SingleObservable<VoidMessage>();
+        [NotNull] private readonly SingleReactiveProperty<Exception> _onError = new SingleReactiveProperty<Exception>();
+
+        [NotNull] private readonly SingleReactiveProperty<VoidMessage> _onCanceled =
+            new SingleReactiveProperty<VoidMessage>();
+
+        [NotNull] private readonly SingleReactiveProperty<VoidMessage> _onCompleted =
+            new SingleReactiveProperty<VoidMessage>();
+
         private bool _requestCancel;
 
         private SagaCoroutine(
@@ -75,7 +80,7 @@ namespace UniSaga
         internal void SetError(Exception error)
         {
             IsError = true;
-            _onError.OnNext(error);
+            _onError.Value = error;
         }
 
         bool IPlayerLoopItem.MoveNext()
@@ -215,13 +220,13 @@ namespace UniSaga
         private void Complete()
         {
             IsCompleted = true;
-            _onCompleted.OnNext(VoidMessage.Default);
+            _onCompleted.Value = VoidMessage.Default;
         }
 
         private void Cancel()
         {
             IsCanceled = true;
-            _onCanceled.OnNext(VoidMessage.Default);
+            _onCanceled.Value = VoidMessage.Default;
         }
     }
 }

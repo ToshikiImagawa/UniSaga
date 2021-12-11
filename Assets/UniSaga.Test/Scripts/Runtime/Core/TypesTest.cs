@@ -22,16 +22,16 @@ namespace UniSaga.Test.Core
             Debug.Log("Teardown");
         }
 
-        [UnityTest]
-        public IEnumerator AsyncTest() => UniTask.ToCoroutine(async () =>
-        {
-            Debug.Log("Start");
-            await UniTask.Delay(2000);
-            Debug.Log("2s");
-            await UniTask.Delay(2000);
-            Debug.Log("4s");
-            await UniTask.Delay(2000);
-            Debug.Log("6s");
-        });
+        // [UnityTest]
+        // public IEnumerator AsyncTest() => UniTask.ToCoroutine(async () =>
+        // {
+        //     Debug.Log("Start");
+        //     await UniTask.Delay(2000);
+        //     Debug.Log("2s");
+        //     await UniTask.Delay(2000);
+        //     Debug.Log("4s");
+        //     await UniTask.Delay(2000);
+        //     Debug.Log("6s");
+        // });
     }
 }
