@@ -1,10 +1,7 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
-using System.Collections;
-using Cysharp.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.TestTools;
 
 namespace UniSaga.Test
 {

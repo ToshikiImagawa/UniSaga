@@ -27,7 +27,7 @@ namespace UniSaga
         TArgument3 argument3
     );
 
-    public sealed class SagaCoroutine : IPlayerLoopItem
+    public class SagaCoroutine : IPlayerLoopItem
     {
         [NotNull] private readonly List<SagaCoroutine> _childCoroutines = new List<SagaCoroutine>();
         [NotNull] private readonly SagaCoroutine _rootCoroutine;
@@ -43,7 +43,8 @@ namespace UniSaga
 
         private bool _requestCancel;
 
-        private SagaCoroutine(
+        // VisibleForTesting
+        internal SagaCoroutine(
             [NotNull] IEffectRunner effectRunner,
             IEnumerator enumerator
         )
@@ -66,7 +67,7 @@ namespace UniSaga
 
         public bool IsError { get; private set; }
         public bool IsCanceled { get; private set; }
-        public bool IsCompleted { get; private set; }
+        public virtual bool IsCompleted { get; private set; }
 
         public IObservable<Exception> OnError => _onError;
         public IObservable<VoidMessage> OnCanceled => _onCanceled;
@@ -77,7 +78,7 @@ namespace UniSaga
             _requestCancel = true;
         }
 
-        internal void SetError(Exception error)
+        internal virtual void SetError(Exception error)
         {
             IsError = true;
             _onError.Value = error;
@@ -116,70 +117,37 @@ namespace UniSaga
             return coroutine;
         }
 
-        internal SagaCoroutine StartCoroutine([NotNull] IEnumerator enumerator)
+        internal virtual SagaCoroutine StartCoroutine([NotNull] IEnumerator enumerator)
         {
             var coroutine = new SagaCoroutine(this, enumerator);
             PlayerLoopHelper.AddAction(coroutine);
             return coroutine;
         }
 
+        private IEnumerator RunEffect(IEffect effect) => _effectRunner.RunEffect(effect, this);
+
         private IEnumerator InnerEnumerator(IEnumerator enumerator)
         {
-            while (enumerator.MoveNext())
+            var flatEnumerator = enumerator.Flat();
+            while (flatEnumerator.MoveNext())
             {
-                var current = enumerator.Current;
+                var current = flatEnumerator.Current;
                 switch (current)
                 {
                     case null:
+                    {
                         yield return null;
-                        break;
-                    case CustomYieldInstruction cyi:
-                    {
-                        while (cyi.keepWaiting)
-                        {
-                            yield return null;
-                        }
-
-                        break;
-                    }
-                    case YieldInstruction yieldInstruction:
-                    {
-                        switch (yieldInstruction)
-                        {
-                            case AsyncOperation ao:
-                                yield return WaitAsyncOperation(ao);
-                                break;
-                            case WaitForSeconds wfs:
-                                yield return WaitWaitForSeconds(wfs);
-                                break;
-                            default:
-                                SetError(new NotSupportedException(
-                                    $"{yieldInstruction.GetType().Name} is not supported."
-                                ));
-                                yield break;
-                        }
-
                         break;
                     }
                     case IEffect effect:
                     {
-                        var ne = InnerEnumerator(_effectRunner.RunEffect(effect, this));
-                        while (ne.MoveNext())
-                        {
-                            yield return null;
-                        }
-
+                        var ne = InnerEnumerator(RunEffect(effect));
+                        while (ne.MoveNext()) yield return null;
                         break;
                     }
-                    case IEnumerator e:
+                    default:
                     {
-                        var ne = InnerEnumerator(e);
-                        while (ne.MoveNext())
-                        {
-                            yield return null;
-                        }
-
-                        break;
+                        throw new NotSupportedException($"{current.GetType().Name} is not supported.");
                     }
                 }
             }
