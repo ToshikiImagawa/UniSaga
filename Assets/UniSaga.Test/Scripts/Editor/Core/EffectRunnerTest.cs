@@ -2,14 +2,14 @@
 
 using System;
 using System.Collections;
-using System.Xml.Schema;
+using System.Diagnostics.CodeAnalysis;
 using NSubstitute;
-using NSubstitute.ExceptionExtensions;
 using NUnit.Framework;
 using UniSaga.Core;
 
 namespace UniSaga.Test.Core
 {
+    [ExcludeFromCodeCoverage]
     public class EffectRunnerTest
     {
         private Func<MockState> _getStateMock;
@@ -45,7 +45,7 @@ namespace UniSaga.Test.Core
             var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
             var sagaCoroutineMock2 = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
             var sagaCoroutineMock3 = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
-            sagaCoroutineMock.StartCoroutine(Arg.Any<IEnumerator>())
+            sagaCoroutineMock.StartCoroutine(Arg.Do<IEnumerator>(enumerator => enumerator.TestRun()))
                 .ReturnsForAnyArgs(sagaCoroutineMock2, sagaCoroutineMock3);
             sagaCoroutineMock2.IsCompleted.Returns(true);
             sagaCoroutineMock3.IsCompleted.Returns(true);
@@ -316,6 +316,7 @@ namespace UniSaga.Test.Core
         }
 
         // ReSharper disable once ClassNeverInstantiated.Local
+        [ExcludeFromCodeCoverage]
         private sealed class MockState
         {
         }

@@ -1,12 +1,14 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using NSubstitute;
 using NUnit.Framework;
 using UniSaga.Core;
 
 namespace UniSaga.Test.Core
 {
+    [ExcludeFromCodeCoverage]
     public class TypesTest
     {
         private IObserver<int> _intObserverMock = Substitute.For<IObserver<int>>();

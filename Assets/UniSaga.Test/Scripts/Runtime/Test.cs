@@ -1,10 +1,12 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
+using System.Diagnostics.CodeAnalysis;
 using NUnit.Framework;
 using UnityEngine;
 
 namespace UniSaga.Test
 {
+    [ExcludeFromCodeCoverage]
     public class Test
     {
         [SetUp]
