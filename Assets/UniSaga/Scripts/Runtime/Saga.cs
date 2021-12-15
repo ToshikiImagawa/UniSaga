@@ -54,7 +54,8 @@ namespace UniSaga
             _enumerator = InnerEnumerator(enumerator);
         }
 
-        private SagaCoroutine(
+        // VisibleForTesting
+        internal SagaCoroutine(
             [NotNull] SagaCoroutine sagaCoroutine,
             IEnumerator enumerator
         )

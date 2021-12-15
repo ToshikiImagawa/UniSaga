@@ -2,7 +2,9 @@
 
 using System;
 using System.Collections;
+using System.Xml.Schema;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using NUnit.Framework;
 using UniSaga.Core;
 
@@ -242,6 +244,75 @@ namespace UniSaga.Test.Core
                         }
                     )
                 );
+        }
+
+        [Test]
+        public void CancelEffect()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+
+            var sagaCoroutineMock1 = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            var sagaCoroutineMock2 = Substitute.For<SagaCoroutine>(sagaCoroutineMock1, Enumerator.Empty);
+            var callEffectDescriptor = new CancelEffect.Descriptor(sagaCoroutineMock2);
+            var callEffect = new CancelEffect(callEffectDescriptor);
+            // execute
+            effectRunner.RunEffect(callEffect, sagaCoroutineMock1).TestRun();
+            // verify
+            sagaCoroutineMock1.Received(0).RequestCancel();
+            sagaCoroutineMock2.Received().RequestCancel();
+        }
+
+        [Test]
+        public void CancelEffect_Null()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+
+            var sagaCoroutineMock1 = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            var sagaCoroutineMock2 = Substitute.For<SagaCoroutine>(sagaCoroutineMock1, Enumerator.Empty);
+            var callEffectDescriptor = new CancelEffect.Descriptor(null);
+            var callEffect = new CancelEffect(callEffectDescriptor);
+            // execute
+            effectRunner.RunEffect(callEffect, sagaCoroutineMock2).TestRun();
+            // verify
+            sagaCoroutineMock1.Received(0).RequestCancel();
+            sagaCoroutineMock2.Received().RequestCancel();
+        }
+
+        [Test]
+        public void SelectEffect()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+
+            var state = new MockState();
+            var args = new object[] { 1, "2", 3, "4" };
+            const string returnValue = "test";
+            _getStateMock().Returns(state);
+            var selectorMock = Substitute.For<Func<object, object[], object>>();
+            selectorMock(state, args).Returns(returnValue);
+            var setResultValueMock = Substitute.For<Action<object>>();
+            var callEffectDescriptor =
+                new SelectEffect.Descriptor(selectorMock, args, setResultValueMock);
+            var callEffect = new SelectEffect(callEffectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            // execute
+            effectRunner.RunEffect(callEffect, sagaCoroutineMock).TestRun();
+            // verify
+            setResultValueMock.Received()(returnValue);
         }
 
         // ReSharper disable once ClassNeverInstantiated.Local
