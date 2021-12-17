@@ -24,15 +24,4 @@ namespace UniSaga.Test
             }
         }
     }
-
-    [ExcludeFromCodeCoverage]
-    public static class Enumerator
-    {
-        public static readonly IEnumerator Empty = _Empty();
-
-        private static IEnumerator _Empty()
-        {
-            yield break;
-        }
-    }
 }

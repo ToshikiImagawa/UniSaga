@@ -26,54 +26,19 @@ namespace UniSaga.Core
 
         public IEnumerator RunEffect(IEffect effect, SagaCoroutine coroutine)
         {
-            switch (effect)
+            return effect switch
             {
-                case AllEffect allEffect:
-                {
-                    yield return WaitAllEffect(allEffect, coroutine);
-                    break;
-                }
-                case RaceEffect raceEffect:
-                {
-                    yield return WaitRaceEffect(raceEffect, coroutine);
-                    break;
-                }
-                case CallEffect callEffect:
-                {
-                    yield return WaitCallEffect(callEffect, coroutine);
-                    break;
-                }
-                case CancelEffect cancelEffect:
-                {
-                    RunCancelEffect(cancelEffect, coroutine);
-                    break;
-                }
-                case SelectEffect selectEffect:
-                {
-                    RunSelectEffect(selectEffect);
-                    break;
-                }
-                case PutEffect putEffect:
-                {
-                    RunPutEffect(putEffect);
-                    break;
-                }
-                case TakeEffect takeEffect:
-                {
-                    yield return WaitTakeEffect(takeEffect);
-                    break;
-                }
-                case ForkEffect forkEffect:
-                {
-                    RunForkEffect(forkEffect, coroutine);
-                    break;
-                }
-                case JoinEffect joinEffect:
-                {
-                    yield return WaitJoinEffect(joinEffect, coroutine);
-                    break;
-                }
-            }
+                AllEffect allEffect => WaitAllEffect(allEffect, coroutine),
+                RaceEffect raceEffect => WaitRaceEffect(raceEffect, coroutine),
+                CallEffect callEffect => WaitCallEffect(callEffect, coroutine),
+                CancelEffect cancelEffect => RunCancelEffect(cancelEffect, coroutine),
+                SelectEffect selectEffect => RunSelectEffect(selectEffect),
+                PutEffect putEffect => RunPutEffect(putEffect),
+                TakeEffect takeEffect => WaitTakeEffect(takeEffect),
+                ForkEffect forkEffect => RunForkEffect(forkEffect, coroutine),
+                JoinEffect joinEffect => WaitJoinEffect(joinEffect, coroutine),
+                _ => Enumerator.Empty
+            };
         }
 
         private static IEnumerator WaitAllEffect(AllEffect effect, SagaCoroutine coroutine)
@@ -86,17 +51,51 @@ namespace UniSaga.Core
             catch (Exception error)
             {
                 coroutine.SetError(error);
-                yield break;
+                return Enumerator.Empty;
             }
 
-            while (!coroutines.All(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled))
+            return Inner();
+
+            IEnumerator Inner()
             {
-                yield return null;
+                while (!coroutines.All(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled))
+                {
+                    yield return null;
+                }
+
+                foreach (var sagaCoroutine in coroutines)
+                {
+                    sagaCoroutine.RequestCancel();
+                }
+            }
+        }
+
+        private static IEnumerator WaitRaceEffect(RaceEffect effect, SagaCoroutine coroutine)
+        {
+            SagaCoroutine[] coroutines;
+            try
+            {
+                coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
+            }
+            catch (Exception error)
+            {
+                coroutine.SetError(error);
+                return Enumerator.Empty;
             }
 
-            foreach (var sagaCoroutine in coroutines)
+            return Inner();
+
+            IEnumerator Inner()
             {
-                sagaCoroutine.RequestCancel();
+                while (!coroutines.Any(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled))
+                {
+                    yield return null;
+                }
+
+                foreach (var c in coroutines)
+                {
+                    c.RequestCancel();
+                }
             }
         }
 
@@ -117,78 +116,71 @@ namespace UniSaga.Core
             return coroutines;
         }
 
-        private static IEnumerator WaitRaceEffect(RaceEffect effect, SagaCoroutine coroutine)
-        {
-            SagaCoroutine[] coroutines;
-            try
-            {
-                coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
-            }
-            catch (Exception error)
-            {
-                coroutine.SetError(error);
-                yield break;
-            }
-
-            while (!coroutines.Any(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled))
-            {
-                yield return null;
-            }
-
-            foreach (var c in coroutines)
-            {
-                c.RequestCancel();
-            }
-        }
-
         private static IEnumerator WaitCallEffect(CallEffect effect, SagaCoroutine coroutine)
         {
             var descriptor = effect.EffectDescriptor;
             var args = new[] { (object)coroutine }.Concat(descriptor.Args).ToArray();
-            yield return descriptor.Fn(args);
+
+            return Inner();
+
+            IEnumerator Inner()
+            {
+                yield return descriptor.Fn(args);
+            }
         }
 
-        private static void RunCancelEffect(CancelEffect effect, SagaCoroutine sagaCoroutine)
+        private static IEnumerator RunCancelEffect(CancelEffect effect, SagaCoroutine sagaCoroutine)
         {
             var descriptor = effect.EffectDescriptor;
             var coroutine = descriptor.Coroutine ?? sagaCoroutine;
             coroutine.RequestCancel();
+            return Enumerator.Empty;
         }
 
-        private void RunSelectEffect(SelectEffect effect)
+        private IEnumerator RunSelectEffect(SelectEffect effect)
         {
             var descriptor = effect.EffectDescriptor;
             var value = descriptor.Selector(_getState(), descriptor.Args);
             descriptor.SetResultValue(value);
+            return Enumerator.Empty;
         }
 
-        private void RunPutEffect(PutEffect effect)
+        private IEnumerator RunPutEffect(PutEffect effect)
         {
             var descriptor = effect.EffectDescriptor;
             _dispatch(descriptor.Action);
+            return Enumerator.Empty;
         }
 
         private IEnumerator WaitTakeEffect(TakeEffect effect)
         {
             var descriptor = effect.EffectDescriptor;
             var isTaken = false;
-            using (_subject.Where(descriptor.Pattern).Subscribe(new SimpleObserver<object>(_ => { isTaken = true; })))
+            var disposable = _subject.Where(descriptor.Pattern)
+                .Subscribe(new SimpleObserver<object>(_ => { isTaken = true; }));
+            return Inner();
+
+            IEnumerator Inner()
             {
-                while (!isTaken) yield return null;
+                using (disposable)
+                {
+                    while (!isTaken) yield return null;
+                }
             }
         }
 
-        private static void RunForkEffect(ForkEffect effect, SagaCoroutine sagaCoroutine)
+        private static IEnumerator RunForkEffect(ForkEffect effect, SagaCoroutine sagaCoroutine)
         {
             var descriptor = effect.EffectDescriptor;
             if (!(descriptor.Context is InternalSaga saga))
             {
                 sagaCoroutine.SetError(new InvalidOperationException());
-                return;
+                return Enumerator.Empty;
             }
 
             var coroutine = sagaCoroutine.StartCoroutine(saga(descriptor.Args));
             descriptor.SetResultValue?.Invoke(coroutine);
+            return Enumerator.Empty;
         }
 
         private static IEnumerator WaitJoinEffect(JoinEffect effect, SagaCoroutine sagaCoroutine)

@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using NSubstitute;
 using NUnit.Framework;
 using UniSaga.Core;
+using UnityEngine;
 
 namespace UniSaga.Test.Core
 {
@@ -315,9 +316,90 @@ namespace UniSaga.Test.Core
             setResultValueMock.Received()(returnValue);
         }
 
+        [Test]
+        public void PutEffect()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+
+            var action = new MockAction();
+            var effectDescriptor = new PutEffect.Descriptor(action);
+            var putEffect = new PutEffect(effectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            // execute
+            effectRunner.RunEffect(putEffect, sagaCoroutineMock).TestRun();
+            // verify
+            _dispatchMock.Received()(action);
+        }
+
+        [Test]
+        public void TakeEffect()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+
+            var action = new MockAction();
+            var effectDescriptor = new TakeEffect.Descriptor(a => a == action);
+            var effect = new TakeEffect(effectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            IObserver<object> observer = null;
+            _subjectMock
+                .Subscribe(Arg.Do<IObserver<object>>(o => { observer = o; }))
+                .Returns(Disposable.Empty);
+            // execute
+            var e = effectRunner.RunEffect(effect, sagaCoroutineMock);
+            observer?.OnNext(action);
+            // verify
+            e.TestRun();
+        }
+
+        [Test]
+        public void TakeEffect_Error()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+
+            var action = new MockAction();
+            var effectDescriptor = new TakeEffect.Descriptor(a => false);
+            var effect = new TakeEffect(effectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            IObserver<object> observer = null;
+            _subjectMock
+                .Subscribe(Arg.Do<IObserver<object>>(o => { observer = o; }))
+                .Returns(Disposable.Empty);
+            // execute
+            var e = effectRunner.RunEffect(effect, sagaCoroutineMock);
+            observer?.OnNext(action);
+            // verify
+            void TestDelegate()
+            {
+                e.TestRun();
+            }
+            var ex = Assert.Throws<Exception>(TestDelegate);
+            Assert.AreEqual("無限リストになっています", ex.Message);
+        }
+
         // ReSharper disable once ClassNeverInstantiated.Local
         [ExcludeFromCodeCoverage]
         private sealed class MockState
+        {
+        }
+
+        // ReSharper disable once ClassNeverInstantiated.Local
+        [ExcludeFromCodeCoverage]
+        private sealed class MockAction
         {
         }
     }
