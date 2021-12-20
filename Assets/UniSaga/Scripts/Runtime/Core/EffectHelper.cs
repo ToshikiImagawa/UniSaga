@@ -30,7 +30,7 @@ namespace UniSaga.Core
                             var runningCoroutine = forkCoroutine.Value;
                             return runningCoroutine?.IsCompleted ?? true
                                 ? (nextState: "q1", getEffect: YFork)
-                                : (nextState: "q3", getEffect: YCancel(runningCoroutine));
+                                : (nextState: "q3", getEffect: CreateYCancel(runningCoroutine));
                         }
                     },
                     {
@@ -50,9 +50,14 @@ namespace UniSaga.Core
                 return Effects.Fork(worker, forkCoroutine, workerArgs);
             }
 
-            Func<IEffect> YCancel(SagaCoroutine coroutine)
+            Func<IEffect> CreateYCancel(SagaCoroutine coroutine)
             {
-                return () => Effects.Cancel(coroutine);
+                return YCancel;
+
+                IEffect YCancel()
+                {
+                    return Effects.Cancel(coroutine);
+                }
             }
         }
 
