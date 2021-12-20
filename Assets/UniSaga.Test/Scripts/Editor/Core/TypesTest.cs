@@ -73,6 +73,26 @@ namespace UniSaga.Test.Core
         }
 
         [Test]
+        public void Dispose()
+        {
+            // setup
+            var intReactiveProperty = new SingleReactiveProperty<int>();
+            var stringReactiveProperty = new SingleReactiveProperty<string>();
+            var intDisposable = intReactiveProperty.Subscribe(_intObserverMock);
+            var stringDisposable = stringReactiveProperty.Subscribe(_stringObserverMock);
+            intDisposable.Dispose();
+            stringDisposable.Dispose();
+            // execute
+            intReactiveProperty.Value = 10;
+            stringReactiveProperty.Value = "test01";
+            // verify
+            _intObserverMock.Received(0).OnNext(Arg.Any<int>());
+            _stringObserverMock.Received(0).OnNext(Arg.Any<string>());
+            intDisposable.Dispose();
+            stringDisposable.Dispose();
+        }
+
+        [Test]
         public void 重複実行エラー()
         {
             // setup
@@ -92,6 +112,9 @@ namespace UniSaga.Test.Core
                 stringReactiveProperty.Value = "test02";
             }
 
+            var actualInt = intReactiveProperty.Value;
+            var actualString = stringReactiveProperty.Value;
+
             // verify
             Assert.Throws<InvalidOperationException>(IntReactivePropertyTestDelegate);
             Assert.Throws<InvalidOperationException>(StringReactivePropertyTestDelegate);
@@ -105,6 +128,9 @@ namespace UniSaga.Test.Core
                 _stringObserverMock.Received(1).OnCompleted();
                 _stringObserverMock.Received(0).OnError(Arg.Any<Exception>());
             }
+
+            Assert.AreEqual(10, actualInt);
+            Assert.AreEqual("test01", actualString);
         }
     }
 }

@@ -66,8 +66,8 @@ namespace UniSaga
             _rootCoroutine._childCoroutines.Add(this);
         }
 
-        public bool IsError { get; private set; }
-        public bool IsCanceled { get; private set; }
+        public virtual bool IsError { get; private set; }
+        public virtual bool IsCanceled { get; private set; }
         public virtual bool IsCompleted { get; private set; }
 
         public IObservable<Exception> OnError => _onError;

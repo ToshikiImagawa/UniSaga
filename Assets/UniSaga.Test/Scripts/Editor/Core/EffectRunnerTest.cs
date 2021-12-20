@@ -226,9 +226,8 @@ namespace UniSaga.Test.Core
             var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
             var fnMock = Substitute.For<Func<object[], IEnumerator>>();
             fnMock.Invoke(Arg.Any<object[]>()).Returns(Enumerator.Empty);
-            var setResultValueMock = Substitute.For<Action<object>>();
             var args = new[] { (object)1, "test" };
-            var callEffectDescriptor = new CallEffect.Descriptor(fnMock, args, setResultValueMock);
+            var callEffectDescriptor = new CallEffect.Descriptor(fnMock, args);
             var callEffect = new CallEffect(callEffectDescriptor);
             // execute
             effectRunner.RunEffect(callEffect, sagaCoroutineMock).TestRun();
@@ -382,11 +381,117 @@ namespace UniSaga.Test.Core
             // execute
             var e = effectRunner.RunEffect(effect, sagaCoroutineMock);
             observer?.OnNext(action);
+
             // verify
             void TestDelegate()
             {
                 e.TestRun();
             }
+
+            var ex = Assert.Throws<Exception>(TestDelegate);
+            Assert.AreEqual("無限リストになっています", ex.Message);
+        }
+
+        [Test]
+        public void ForkEffect()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+            var args = new object[] { 1, "2", 3, "4" };
+            var setResultValueMock = Substitute.For<Action<object>>();
+            var internalSagaMock = Substitute.For<InternalSaga>();
+            var effectDescriptor = new ForkEffect.Descriptor(internalSagaMock, args, setResultValueMock);
+            var effect = new ForkEffect(effectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            var sagaCoroutineMock2 = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            sagaCoroutineMock.StartCoroutine(Arg.Any<IEnumerator>()).Returns(sagaCoroutineMock2);
+            // execute
+            effectRunner.RunEffect(effect, sagaCoroutineMock);
+            // verify
+            internalSagaMock.Received()(args);
+            setResultValueMock.Received()(sagaCoroutineMock2);
+        }
+
+        [Test]
+        public void JoinEffect()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+            var waitSagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            var effectDescriptor = new JoinEffect.Descriptor(waitSagaCoroutineMock);
+            var effect = new JoinEffect(effectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            waitSagaCoroutineMock.IsCompleted.Returns(true);
+            // execute & verify
+            effectRunner.RunEffect(effect, sagaCoroutineMock).TestRun();
+        }
+
+        [Test]
+        public void JoinEffect_Canceled()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+            var waitSagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            var effectDescriptor = new JoinEffect.Descriptor(waitSagaCoroutineMock);
+            var effect = new JoinEffect(effectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            waitSagaCoroutineMock.IsCanceled.Returns(true);
+            // execute & verify
+            effectRunner.RunEffect(effect, sagaCoroutineMock).TestRun();
+        }
+
+        [Test]
+        public void JoinEffect_Error()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+            var waitSagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            var effectDescriptor = new JoinEffect.Descriptor(waitSagaCoroutineMock);
+            var effect = new JoinEffect(effectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            waitSagaCoroutineMock.IsError.Returns(true);
+            // execute & verify
+            effectRunner.RunEffect(effect, sagaCoroutineMock).TestRun();
+        }
+
+        [Test]
+        public void JoinEffect_Wait()
+        {
+            // setup
+            var effectRunner = new EffectRunner<MockState>(
+                _getStateMock,
+                _dispatchMock,
+                _subjectMock
+            );
+            var waitSagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            var effectDescriptor = new JoinEffect.Descriptor(waitSagaCoroutineMock);
+            var effect = new JoinEffect(effectDescriptor);
+            var sagaCoroutineMock = Substitute.For<SagaCoroutine>(effectRunner, Enumerator.Empty);
+            // execute
+            var e = effectRunner.RunEffect(effect, sagaCoroutineMock);
+                
+            // verify
+            void TestDelegate()
+            {
+                e.TestRun();
+            }
+
             var ex = Assert.Throws<Exception>(TestDelegate);
             Assert.AreEqual("無限リストになっています", ex.Message);
         }

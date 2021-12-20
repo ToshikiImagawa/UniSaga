@@ -91,8 +91,7 @@ namespace UniSaga.Core
                     var a = p.Skip(1).ToArray();
                     return function(a, sagaTask);
                 },
-                args,
-                null
+                args
             ));
         }
     }

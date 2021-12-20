@@ -96,8 +96,7 @@ namespace UniSaga.Threading.Core
                         new CancellationObserver<UniRedux.VoidMessage>(cancellationTokenSource));
                     return InnerTask(function(a, cancellationTokenSource.Token), sagaCoroutine).ToCoroutine();
                 },
-                args,
-                null
+                args
             ));
 
             static async UniTask InnerTask(UniTask uniTask, SagaCoroutine sagaCoroutine)
@@ -211,8 +210,7 @@ namespace UniSaga.Threading.Core
                     return InnerTask(function(a, cancellationTokenSource.Token), returnData, sagaCoroutine)
                         .ToCoroutine();
                 },
-                args,
-                null
+                args
             ));
 
             static async UniTask InnerTask(

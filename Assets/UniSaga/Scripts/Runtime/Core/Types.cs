@@ -48,16 +48,14 @@ namespace UniSaga.Core
 
         public Descriptor EffectDescriptor { get; }
 
-        public class Descriptor : CallEffect.Descriptor
+        public class Descriptor
         {
-            public Descriptor(SagaCoroutine sagaCoroutine) : base(
-                sagaCoroutine,
-                a => Empty(),
-                Array.Empty<object>(),
-                null
-            )
+            public Descriptor([NotNull] SagaCoroutine sagaCoroutine)
             {
+                SagaCoroutine = sagaCoroutine;
             }
+
+            [NotNull] public SagaCoroutine SagaCoroutine { get; }
 
             private static IEnumerator Empty()
             {
@@ -75,20 +73,22 @@ namespace UniSaga.Core
 
         public Descriptor EffectDescriptor { get; }
 
-        public class Descriptor : CallEffect.Descriptor
+        public class Descriptor
         {
             public Descriptor(
-                [NotNull] object context,
+                [NotNull] InternalSaga internalSaga,
                 [NotNull] object[] args,
-                [CanBeNull] Action<object> setResultValue
-            ) : base(
-                context,
-                a => Empty(),
-                args,
-                setResultValue
+                [CanBeNull] Action<SagaCoroutine> setResultValue
             )
             {
+                InternalSaga = internalSaga;
+                Args = args;
+                SetResultValue = setResultValue;
             }
+
+            [NotNull] public InternalSaga InternalSaga { get; }
+            [NotNull] public object[] Args { get; }
+            [CanBeNull] public Action<SagaCoroutine> SetResultValue { get; }
 
             private static IEnumerator Empty()
             {
@@ -185,7 +185,7 @@ namespace UniSaga.Core
         }
     }
 
-    internal class CallEffect : IEffect
+    internal sealed class CallEffect : IEffect
     {
         public CallEffect([NotNull] Descriptor descriptor)
         {
@@ -198,32 +198,15 @@ namespace UniSaga.Core
         {
             public Descriptor(
                 [NotNull] Func<object[], IEnumerator> fn,
-                [NotNull] object[] args,
-                [CanBeNull] Action<object> setResultValue)
-            {
-                Context = null;
-                Fn = fn;
-                Args = args;
-                SetResultValue = setResultValue;
-            }
-
-            protected Descriptor(
-                [CanBeNull] object context,
-                [NotNull] Func<object[], IEnumerator> fn,
-                [NotNull] object[] args,
-                [CanBeNull] Action<object> setResultValue
+                [NotNull] object[] args
             )
             {
-                Context = context;
                 Fn = fn;
                 Args = args;
-                SetResultValue = setResultValue;
             }
 
-            [CanBeNull] public object Context { get; }
             [NotNull] public Func<object[], IEnumerator> Fn { get; }
             [NotNull] public object[] Args { get; }
-            [CanBeNull] public Action<object> SetResultValue { get; }
         }
     }
 
@@ -339,6 +322,64 @@ namespace UniSaga.Core
         private static IEnumerator _Empty()
         {
             yield break;
+        }
+    }
+
+    internal sealed class SimpleObserver<T> : IObserver<T>
+    {
+        private readonly Action _onCompleted;
+        private readonly Action<Exception> _onError;
+        private readonly Action<T> _onNext;
+        private bool _completed;
+        private readonly object _lockObj = new object();
+
+        public SimpleObserver(
+            Action<T> onNext = null,
+            Action onCompleted = null,
+            Action<Exception> onError = null
+        )
+        {
+            _onCompleted = onCompleted;
+            _onError = onError;
+            _onNext = onNext;
+        }
+
+        public void OnCompleted()
+        {
+            Action onCompleted;
+            lock (_lockObj)
+            {
+                if (_completed) return;
+                _completed = true;
+                onCompleted = _onCompleted;
+            }
+
+            onCompleted?.Invoke();
+        }
+
+        public void OnError(Exception error)
+        {
+            Action<Exception> onError;
+            lock (_lockObj)
+            {
+                if (_completed) return;
+                _completed = true;
+                onError = _onError;
+            }
+
+            onError?.Invoke(error);
+        }
+
+        public void OnNext(T value)
+        {
+            Action<T> onNext;
+            lock (_lockObj)
+            {
+                if (_completed) return;
+                onNext = _onNext;
+            }
+
+            onNext?.Invoke(value);
         }
     }
 }

@@ -36,7 +36,7 @@ namespace UniSaga.Core
                 PutEffect putEffect => RunPutEffect(putEffect),
                 TakeEffect takeEffect => WaitTakeEffect(takeEffect),
                 ForkEffect forkEffect => RunForkEffect(forkEffect, coroutine),
-                JoinEffect joinEffect => WaitJoinEffect(joinEffect, coroutine),
+                JoinEffect joinEffect => WaitJoinEffect(joinEffect),
                 _ => Enumerator.Empty
             };
         }
@@ -58,7 +58,8 @@ namespace UniSaga.Core
 
             IEnumerator Inner()
             {
-                while (!coroutines.All(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled))
+                while (!coroutines.All(sagaCoroutine =>
+                    sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
                 {
                     yield return null;
                 }
@@ -87,7 +88,8 @@ namespace UniSaga.Core
 
             IEnumerator Inner()
             {
-                while (!coroutines.Any(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled))
+                while (!coroutines.Any(sagaCoroutine =>
+                    sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
                 {
                     yield return null;
                 }
@@ -156,7 +158,8 @@ namespace UniSaga.Core
         {
             var descriptor = effect.EffectDescriptor;
             var isTaken = false;
-            var disposable = _subject.Where(descriptor.Pattern)
+            var disposable = _subject
+                .Where(descriptor.Pattern)
                 .Subscribe(new SimpleObserver<object>(_ => { isTaken = true; }));
             return Inner();
 
@@ -172,61 +175,24 @@ namespace UniSaga.Core
         private static IEnumerator RunForkEffect(ForkEffect effect, SagaCoroutine sagaCoroutine)
         {
             var descriptor = effect.EffectDescriptor;
-            if (!(descriptor.Context is InternalSaga saga))
-            {
-                sagaCoroutine.SetError(new InvalidOperationException());
-                return Enumerator.Empty;
-            }
-
+            var saga = descriptor.InternalSaga;
             var coroutine = sagaCoroutine.StartCoroutine(saga(descriptor.Args));
             descriptor.SetResultValue?.Invoke(coroutine);
             return Enumerator.Empty;
         }
 
-        private static IEnumerator WaitJoinEffect(JoinEffect effect, SagaCoroutine sagaCoroutine)
+        private static IEnumerator WaitJoinEffect(JoinEffect effect)
         {
             var descriptor = effect.EffectDescriptor;
-            if (!(descriptor.Context is SagaCoroutine coroutine))
-            {
-                sagaCoroutine.SetError(new InvalidOperationException());
-                yield break;
-            }
+            var coroutine = descriptor.SagaCoroutine;
+            return Inner();
 
-            while (!coroutine.IsCompleted && !coroutine.IsCanceled)
+            IEnumerator Inner()
             {
-                yield return null;
-            }
-        }
-
-        private class SimpleObserver<T> : IObserver<T>
-        {
-            private readonly Action _onCompleted;
-            private readonly Action<Exception> _onError;
-            private readonly Action<T> _onNext;
-
-            public SimpleObserver(
-                Action<T> onNext = null,
-                Action onCompleted = null,
-                Action<Exception> onError = null)
-            {
-                _onCompleted = onCompleted;
-                _onError = onError;
-                _onNext = onNext;
-            }
-
-            public void OnCompleted()
-            {
-                _onCompleted?.Invoke();
-            }
-
-            public void OnError(Exception error)
-            {
-                _onError?.Invoke(error);
-            }
-
-            public void OnNext(T value)
-            {
-                _onNext?.Invoke(value);
+                while (!coroutine.IsCompleted && !coroutine.IsCanceled && !coroutine.IsError)
+                {
+                    yield return null;
+                }
             }
         }
     }
