@@ -43,23 +43,12 @@ namespace UniSaga.Core
 
         private static IEnumerator WaitAllEffect(AllEffect effect, SagaCoroutine coroutine)
         {
-            SagaCoroutine[] coroutines;
-            try
-            {
-                coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
-            }
-            catch (Exception error)
-            {
-                coroutine.SetError(error);
-                return Enumerator.Empty;
-            }
-
+            var coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
             return Inner();
 
             IEnumerator Inner()
             {
-                while (!coroutines.All(sagaCoroutine =>
-                    sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
+                while (!coroutines.All(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
                 {
                     yield return null;
                 }
@@ -73,23 +62,12 @@ namespace UniSaga.Core
 
         private static IEnumerator WaitRaceEffect(RaceEffect effect, SagaCoroutine coroutine)
         {
-            SagaCoroutine[] coroutines;
-            try
-            {
-                coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
-            }
-            catch (Exception error)
-            {
-                coroutine.SetError(error);
-                return Enumerator.Empty;
-            }
-
+            var coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
             return Inner();
 
             IEnumerator Inner()
             {
-                while (!coroutines.Any(sagaCoroutine =>
-                    sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
+                while (!coroutines.Any(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
                 {
                     yield return null;
                 }
