@@ -20,11 +20,11 @@ namespace UniSaga.Sample
                 TakeEverySaga,
                 takeEveryCoroutine
             );
-            var takeLatestTask = new ReturnData<SagaCoroutine>();
+            var takeLatestCoroutine = new ReturnData<SagaCoroutine>();
             yield return Effects.TakeLatest(
                 action => action is StartAction,
                 TakeLatestSaga,
-                takeLatestTask
+                takeLatestCoroutine
             );
 
             // 現在のUserIdが5か判定
@@ -44,21 +44,18 @@ namespace UniSaga.Sample
                 var checkUserId = CheckUserId5Saga();
                 while (checkUserId.MoveNext()) yield return checkUserId.Current;
             }
-            Debug.Log($"{logPrefix} Wait RestartAction");
+            Debug.Log($"{logPrefix} Wait {nameof(RestartAction)}");
             yield return Effects.Take(action => action is RestartAction);
-            Debug.Log($"{logPrefix} Run RestartAction");
-            Debug.Log($"{logPrefix} Before ForkSaga");
+            Debug.Log($"{logPrefix} Fork {nameof(ForkSaga)}");
             var forkCoroutine = new ReturnData<SagaCoroutine>();
             yield return Effects.Fork(ForkSaga, forkCoroutine);
-            Debug.Log($"{logPrefix} After ForkSaga");
-
             Debug.Log($"{logPrefix} Wait 2s");
             yield return AsyncEffects.Delay(2000);
-            Debug.Log($"{logPrefix} Put RestartAction");
+            Debug.Log($"{logPrefix} Put {nameof(RestartAction)}");
             yield return Effects.Put(new RestartAction());
-            Debug.Log($"{logPrefix} Wait for ForkTask to complete");
+            Debug.Log($"{logPrefix} Wait for {nameof(forkCoroutine)} to complete");
             yield return Effects.Join(forkCoroutine.Value);
-            Debug.Log($"{logPrefix} ForkTask is complete");
+            Debug.Log($"{logPrefix} {nameof(forkCoroutine)} is completed");
 
             // UserIdの取得
             {

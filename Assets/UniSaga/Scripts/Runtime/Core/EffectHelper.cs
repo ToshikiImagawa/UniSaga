@@ -10,9 +10,11 @@ namespace UniSaga.Core
     {
         public static IEnumerator<IEffect> TakeLatestHelper(object[] arguments)
         {
-            if (arguments.Length < 2) throw new InvalidOperationException();
-            var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException();
-            var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException();
+            if (arguments.Length < 2) throw new InvalidOperationException("Not enough arguments.");
+            var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException(
+                $"The first argument must be one of type {nameof(Func<object, bool>)}. {arguments[0].GetType().FullName}");
+            var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException(
+                $"The second argument must be one of type {nameof(InternalSaga)}. {arguments[1].GetType().FullName}");
 
             var workerArgs = arguments.Length > 2 ? arguments.Skip(2).ToArray() : Array.Empty<object>();
             var forkCoroutine = new ReturnData<SagaCoroutine>();
@@ -63,9 +65,11 @@ namespace UniSaga.Core
 
         public static IEnumerator<IEffect> TakeEveryHelper(object[] arguments)
         {
-            if (arguments.Length < 2) throw new InvalidOperationException();
-            var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException();
-            var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException();
+            if (arguments.Length < 2) throw new InvalidOperationException("Not enough arguments.");
+            var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException(
+                $"The first argument must be one of type {nameof(Func<object, bool>)}. {arguments[0].GetType().FullName}");
+            var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException(
+                $"The second argument must be one of type {nameof(InternalSaga)}. {arguments[1].GetType().FullName}");
 
             var workerArgs = arguments.Length > 2 ? arguments.Skip(2).ToArray() : Array.Empty<object>();
             return FsmIterator(

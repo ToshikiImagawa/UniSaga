@@ -89,11 +89,6 @@ namespace UniSaga.Core
             [NotNull] public InternalSaga InternalSaga { get; }
             [NotNull] public object[] Args { get; }
             [CanBeNull] public Action<SagaCoroutine> SetResultValue { get; }
-
-            private static IEnumerator Empty()
-            {
-                yield break;
-            }
         }
     }
 

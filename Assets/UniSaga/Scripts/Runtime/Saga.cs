@@ -6,7 +6,6 @@ using JetBrains.Annotations;
 using UniRedux;
 using UniSaga.Core;
 using UniSaga.Plugin;
-using UnityEngine;
 
 namespace UniSaga
 {
@@ -42,6 +41,7 @@ namespace UniSaga
             new SingleReactiveProperty<VoidMessage>();
 
         private bool _requestCancel;
+        private readonly object _lockObj = new object();
 
         // VisibleForTesting
         internal SagaCoroutine(
@@ -81,31 +81,44 @@ namespace UniSaga
 
         internal virtual void SetError(Exception error)
         {
-            IsError = true;
-            _onError.Value = error;
+            lock (_lockObj)
+            {
+                if (IsCompleted) return;
+                IsError = true;
+                IsCompleted = true;
+                _onError.Value = error;
+            }
         }
 
         bool IPlayerLoopItem.MoveNext()
         {
-            if (IsCompleted || IsCanceled || IsError) return false;
-            if (_requestCancel)
+            lock (_lockObj)
             {
-                Cancel();
+                if (IsCompleted) return false;
+                if (_requestCancel)
+                {
+                    IsCanceled = true;
+                    IsCompleted = true;
+                    _onCanceled.Value = VoidMessage.Default;
+                    return false;
+                }
+
+                try
+                {
+                    if (_enumerator.MoveNext()) return true;
+                }
+                catch (Exception error)
+                {
+                    IsError = true;
+                    IsCompleted = true;
+                    _onError.Value = error;
+                    return false;
+                }
+
+                IsCompleted = true;
+                _onCompleted.Value = VoidMessage.Default;
                 return false;
             }
-
-            try
-            {
-                if (_enumerator.MoveNext()) return true;
-            }
-            catch (Exception error)
-            {
-                SetError(error);
-                return false;
-            }
-
-            Complete();
-            return false;
         }
 
         internal static SagaCoroutine StartCoroutine(
@@ -160,42 +173,6 @@ namespace UniSaga
             }
 
             _rootCoroutine._childCoroutines.Remove(this);
-        }
-
-        private static IEnumerator WaitAsyncOperation(AsyncOperation asyncOperation)
-        {
-            while (!asyncOperation.isDone)
-            {
-                yield return null;
-            }
-        }
-
-        private static IEnumerator WaitWaitForSeconds(WaitForSeconds waitForSeconds)
-        {
-            var second = waitForSeconds.GetSeconds();
-            var elapsed = 0.0f;
-            while (true)
-            {
-                yield return null;
-
-                elapsed += Time.deltaTime;
-                if (elapsed >= second)
-                {
-                    break;
-                }
-            }
-        }
-
-        private void Complete()
-        {
-            IsCompleted = true;
-            _onCompleted.Value = VoidMessage.Default;
-        }
-
-        private void Cancel()
-        {
-            IsCanceled = true;
-            _onCanceled.Value = VoidMessage.Default;
         }
     }
 }

@@ -14,7 +14,7 @@ namespace UniSaga.Core
         )
         {
             return Create(
-                (_, task) => function(task),
+                (_, sagaCoroutine) => function(sagaCoroutine),
                 Array.Empty<object>()
             );
         }
@@ -25,9 +25,9 @@ namespace UniSaga.Core
         )
         {
             return Create(
-                (p, task) => function(
+                (p, sagaCoroutine) => function(
                     (TArgument)p[0],
-                    task
+                    sagaCoroutine
                 ),
                 new[]
                 {
@@ -43,10 +43,10 @@ namespace UniSaga.Core
         )
         {
             return Create(
-                (p, task) => function(
+                (p, sagaCoroutine) => function(
                     (TArgument1)p[0],
                     (TArgument2)p[1],
-                    task
+                    sagaCoroutine
                 ),
                 new[]
                 {
@@ -64,11 +64,11 @@ namespace UniSaga.Core
         )
         {
             return Create(
-                (p, task) => function(
+                (p, sagaCoroutine) => function(
                     (TArgument1)p[0],
                     (TArgument2)p[1],
                     (TArgument3)p[2],
-                    task
+                    sagaCoroutine
                 ),
                 new[]
                 {
@@ -87,9 +87,9 @@ namespace UniSaga.Core
             return new CallEffect(new CallEffect.Descriptor(
                 p =>
                 {
-                    var sagaTask = (SagaCoroutine)p.First();
+                    var sagaCoroutine = (SagaCoroutine)p.First();
                     var a = p.Skip(1).ToArray();
-                    return function(a, sagaTask);
+                    return function(a, sagaCoroutine);
                 },
                 args
             ));
@@ -297,9 +297,9 @@ namespace UniSaga.Core
 
     internal static class JoinEffectCreator
     {
-        public static JoinEffect Create([NotNull] SagaCoroutine sagaTask)
+        public static JoinEffect Create([NotNull] SagaCoroutine sagaCoroutine)
         {
-            return new JoinEffect(new JoinEffect.Descriptor(sagaTask));
+            return new JoinEffect(new JoinEffect.Descriptor(sagaCoroutine));
         }
     }
 

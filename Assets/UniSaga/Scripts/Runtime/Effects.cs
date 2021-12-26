@@ -206,10 +206,10 @@ namespace UniSaga
 
         #region Join
 
-        public static IEffect Join(SagaCoroutine sagaTask)
+        public static IEffect Join(SagaCoroutine sagaCoroutine)
         {
-            if (sagaTask == null) throw new InvalidOperationException(nameof(sagaTask));
-            return JoinEffectCreator.Create(sagaTask);
+            if (sagaCoroutine == null) throw new InvalidOperationException(nameof(sagaCoroutine));
+            return JoinEffectCreator.Create(sagaCoroutine);
         }
 
         #endregion
@@ -440,9 +440,9 @@ namespace UniSaga
 
         public static IEffect Delay(int millisecondsDelay)
         {
-            return Call(InnerTask, millisecondsDelay);
+            return Call(InnerCoroutine, millisecondsDelay);
 
-            static IEnumerator InnerTask(int millisecondsDelay, SagaCoroutine coroutine)
+            static IEnumerator InnerCoroutine(int millisecondsDelay, SagaCoroutine coroutine)
             {
                 if (millisecondsDelay < 0)
                 {
@@ -458,13 +458,13 @@ namespace UniSaga
 
         public static IEffect DelayFrame(int delayFrameCount)
         {
-            return Call(InnerTask, delayFrameCount);
+            return Call(InnerCoroutine, delayFrameCount);
 
-            static IEnumerator InnerTask(int delayFrameCount, SagaCoroutine task)
+            static IEnumerator InnerCoroutine(int delayFrameCount, SagaCoroutine sagaCoroutine)
             {
                 if (delayFrameCount < 0)
                 {
-                    task.SetError(new ArgumentOutOfRangeException(
+                    sagaCoroutine.SetError(new ArgumentOutOfRangeException(
                         $"Delay does not allow minus {nameof(delayFrameCount)}. {nameof(delayFrameCount)}:{delayFrameCount}"
                     ));
                     yield break;

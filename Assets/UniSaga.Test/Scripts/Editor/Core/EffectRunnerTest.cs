@@ -424,17 +424,5 @@ namespace UniSaga.Test.Core
             var ex = Assert.Throws<Exception>(TestDelegate);
             Assert.AreEqual("無限リストになっています", ex.Message);
         }
-
-        // ReSharper disable once ClassNeverInstantiated.Local
-        [ExcludeFromCodeCoverage]
-        private sealed class MockState
-        {
-        }
-
-        // ReSharper disable once ClassNeverInstantiated.Local
-        [ExcludeFromCodeCoverage]
-        private sealed class MockAction
-        {
-        }
     }
 }
