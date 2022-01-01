@@ -10,12 +10,14 @@ namespace UniSaga.Core
     {
         public static IEnumerator<IEffect> TakeLatestHelper(object[] arguments)
         {
-            if (arguments.Length < 2) throw new InvalidOperationException();
-            var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException();
-            var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException();
+            if (arguments.Length < 2) throw new InvalidOperationException("Not enough arguments.");
+            var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException(
+                $"The first argument must be one of type {nameof(Func<object, bool>)}. {arguments[0].GetType().FullName}");
+            var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException(
+                $"The second argument must be one of type {nameof(InternalSaga)}. {arguments[1].GetType().FullName}");
 
             var workerArgs = arguments.Length > 2 ? arguments.Skip(2).ToArray() : Array.Empty<object>();
-            var forkTask = new ReturnData<SagaTask>();
+            var forkCoroutine = new ReturnData<SagaCoroutine>();
             return FsmIterator(
                 new Dictionary<string, Func<(string nextState, Func<IEffect> getEffect)>>
                 {
@@ -27,10 +29,10 @@ namespace UniSaga.Core
                         "q2",
                         () =>
                         {
-                            var runningTask = forkTask.Value;
-                            return runningTask?.IsCompleted ?? true
+                            var runningCoroutine = forkCoroutine.Value;
+                            return runningCoroutine?.IsCompleted ?? true
                                 ? (nextState: "q1", getEffect: YFork)
-                                : (nextState: "q3", getEffect: YCancel(runningTask));
+                                : (nextState: "q3", getEffect: CreateYCancel(runningCoroutine));
                         }
                     },
                     {
@@ -47,20 +49,27 @@ namespace UniSaga.Core
 
             IEffect YFork()
             {
-                return Effects.Fork(worker, forkTask, workerArgs);
+                return Effects.Fork(worker, forkCoroutine, workerArgs);
             }
 
-            Func<IEffect> YCancel(SagaTask task)
+            Func<IEffect> CreateYCancel(SagaCoroutine coroutine)
             {
-                return () => Effects.Cancel(task);
+                return YCancel;
+
+                IEffect YCancel()
+                {
+                    return Effects.Cancel(coroutine);
+                }
             }
         }
 
         public static IEnumerator<IEffect> TakeEveryHelper(object[] arguments)
         {
-            if (arguments.Length < 2) throw new InvalidOperationException();
-            var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException();
-            var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException();
+            if (arguments.Length < 2) throw new InvalidOperationException("Not enough arguments.");
+            var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException(
+                $"The first argument must be one of type {nameof(Func<object, bool>)}. {arguments[0].GetType().FullName}");
+            var worker = arguments[1] as InternalSaga ?? throw new InvalidOperationException(
+                $"The second argument must be one of type {nameof(InternalSaga)}. {arguments[1].GetType().FullName}");
 
             var workerArgs = arguments.Length > 2 ? arguments.Skip(2).ToArray() : Array.Empty<object>();
             return FsmIterator(

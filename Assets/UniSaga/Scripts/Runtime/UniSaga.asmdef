@@ -2,8 +2,7 @@
     "name": "UniSaga",
     "rootNamespace": "",
     "references": [
-        "GUID:1ab4a4227bd94f44dab6604279a2817e",
-        "GUID:f51ebe6a0ceec4240a699833d6309b23"
+        "GUID:1ab4a4227bd94f44dab6604279a2817e"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

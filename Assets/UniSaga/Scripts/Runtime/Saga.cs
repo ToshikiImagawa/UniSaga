@@ -1,132 +1,178 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Threading;
+using System.Linq;
 using JetBrains.Annotations;
-using UniSystem.Reactive.Disposables;
+using UniRedux;
+using UniSaga.Core;
+using UniSaga.Plugin;
 
 namespace UniSaga
 {
-    public delegate IEnumerator<IEffect> Saga();
+    public delegate IEnumerator Saga();
 
-    public delegate IEnumerator<IEffect> Saga<in TArgument>(
+    public delegate IEnumerator Saga<in TArgument>(
         TArgument argument
     );
 
-    public delegate IEnumerator<IEffect> Saga<in TArgument1, in TArgument2>(
+    public delegate IEnumerator Saga<in TArgument1, in TArgument2>(
         TArgument1 argument1,
         TArgument2 argument2
     );
 
-    public delegate IEnumerator<IEffect> Saga<in TArgument1, in TArgument2, in TArgument3>(
+    public delegate IEnumerator Saga<in TArgument1, in TArgument2, in TArgument3>(
         TArgument1 argument1,
         TArgument2 argument2,
         TArgument3 argument3
     );
 
-    public sealed class SagaTask
+    public class SagaCoroutine : IPlayerLoopItem
     {
-        [CanBeNull] private CancellationTokenSource _cancellationTokenSource;
-        [CanBeNull] private SagaTask _parentTask;
-        private readonly List<SagaTask> _childTasks = new List<SagaTask>();
-        private readonly object _lock = new object();
-        private readonly ErrorObserver _errorObserver = new ErrorObserver();
+        [NotNull] private readonly List<SagaCoroutine> _childCoroutines = new List<SagaCoroutine>();
+        [NotNull] private readonly SagaCoroutine _rootCoroutine;
+        [NotNull] private readonly IEffectRunner _effectRunner;
+        [NotNull] private readonly IEnumerator _enumerator;
+        [NotNull] private readonly SingleReactiveProperty<Exception> _onError = new SingleReactiveProperty<Exception>();
 
-        internal SagaTask(CancellationTokenSource cancellationTokenSource, SagaTask parentTask = null)
+        [NotNull] private readonly SingleReactiveProperty<VoidMessage> _onCanceled =
+            new SingleReactiveProperty<VoidMessage>();
+
+        [NotNull] private readonly SingleReactiveProperty<VoidMessage> _onCompleted =
+            new SingleReactiveProperty<VoidMessage>();
+
+        private bool _requestCancel;
+        private readonly object _lockObj = new object();
+
+        // VisibleForTesting
+        internal SagaCoroutine(
+            [NotNull] IEffectRunner effectRunner,
+            IEnumerator enumerator
+        )
         {
-            _cancellationTokenSource = cancellationTokenSource;
-            _parentTask = parentTask;
-            _parentTask?.SetChildTask(this);
+            _rootCoroutine = this;
+            _effectRunner = effectRunner;
+            _enumerator = InnerEnumerator(enumerator);
         }
 
-        public IObservable<Exception> Error => _errorObserver;
-        public bool IsCompleted { get; private set; }
-        internal CancellationToken Token => _cancellationTokenSource?.Token ?? CancellationToken.None;
-
-        internal bool TryComplete()
+        // VisibleForTesting
+        internal SagaCoroutine(
+            [NotNull] SagaCoroutine sagaCoroutine,
+            IEnumerator enumerator
+        )
         {
-            if (IsCompleted) return true;
-            SagaTask parentTask;
-            lock (_lock)
+            _rootCoroutine = sagaCoroutine._rootCoroutine;
+            _effectRunner = sagaCoroutine._effectRunner;
+            _enumerator = InnerEnumerator(enumerator);
+            _rootCoroutine._childCoroutines.Add(this);
+        }
+
+        public virtual bool IsError { get; private set; }
+        public virtual bool IsCanceled { get; private set; }
+        public virtual bool IsCompleted { get; private set; }
+
+        public IObservable<Exception> OnError => _onError;
+        public IObservable<VoidMessage> OnCanceled => _onCanceled;
+        public IObservable<VoidMessage> OnCompleted => _onCompleted;
+
+        internal void RequestCancel()
+        {
+            _requestCancel = true;
+        }
+
+        internal virtual void SetError(Exception error)
+        {
+            lock (_lockObj)
             {
-                if (_childTasks.Count != 0) return IsCompleted;
-                parentTask = _parentTask;
+                if (IsCompleted) return;
+                IsError = true;
                 IsCompleted = true;
-                _parentTask = null;
-                _cancellationTokenSource = null;
-            }
-
-            parentTask?.RemoveChildTask(this);
-            return IsCompleted;
-        }
-
-        internal void Cancel()
-        {
-            _cancellationTokenSource?.Cancel();
-        }
-
-        internal void SetError([NotNull] Exception error)
-        {
-            _errorObserver.OnNext(error);
-        }
-
-        private void SetChildTask(SagaTask childTask)
-        {
-            if (IsCompleted) return;
-            lock (_lock)
-            {
-                if (_childTasks.Contains(childTask)) throw new InvalidOperationException();
-                _childTasks.Add(childTask);
+                _onError.Value = error;
             }
         }
 
-        private void RemoveChildTask(SagaTask childTask)
+        bool IPlayerLoopItem.MoveNext()
         {
-            if (IsCompleted) return;
-            lock (_lock)
+            lock (_lockObj)
             {
-                _childTasks.Remove(childTask);
-            }
-        }
-
-        private class ErrorObserver : IObservable<Exception>
-        {
-            private Exception _exception;
-            private readonly object _lock = new object();
-            private readonly List<IObserver<Exception>> _observers = new List<IObserver<Exception>>();
-
-            public void OnNext([NotNull] Exception exception)
-            {
-                IObserver<Exception>[] observers;
-                lock (_lock)
+                if (IsCompleted) return false;
+                if (_requestCancel)
                 {
-                    if (_exception != null) return;
-                    _exception = exception;
-                    observers = _observers.ToArray();
-                    _observers.Clear();
+                    IsCanceled = true;
+                    IsCompleted = true;
+                    _onCanceled.Value = VoidMessage.Default;
+                    return false;
                 }
 
-                foreach (var observer in observers)
+                try
                 {
-                    observer.OnNext(_exception);
-                    observer.OnCompleted();
+                    if (_enumerator.MoveNext()) return true;
                 }
-            }
-
-            public IDisposable Subscribe(IObserver<Exception> observer)
-            {
-                lock (_lock)
+                catch (Exception error)
                 {
-                    if (_exception == null)
+                    IsError = true;
+                    IsCompleted = true;
+                    _onError.Value = error;
+                    return false;
+                }
+
+                IsCompleted = true;
+                _onCompleted.Value = VoidMessage.Default;
+                return false;
+            }
+        }
+
+        internal static SagaCoroutine StartCoroutine(
+            [NotNull] IEffectRunner effectRunner,
+            [NotNull] IEnumerator enumerator
+        )
+        {
+            var coroutine = new SagaCoroutine(effectRunner, enumerator);
+            PlayerLoopHelper.AddAction(coroutine);
+            return coroutine;
+        }
+
+        internal virtual SagaCoroutine StartCoroutine([NotNull] IEnumerator enumerator)
+        {
+            var coroutine = new SagaCoroutine(this, enumerator);
+            PlayerLoopHelper.AddAction(coroutine);
+            return coroutine;
+        }
+
+        private IEnumerator RunEffect(IEffect effect) => _effectRunner.RunEffect(effect, this);
+
+        private IEnumerator InnerEnumerator(IEnumerator enumerator)
+        {
+            var flatEnumerator = enumerator.Flat();
+            while (flatEnumerator.MoveNext())
+            {
+                var current = flatEnumerator.Current;
+                switch (current)
+                {
+                    case null:
                     {
-                        _observers.Add(observer);
-                        return Disposable.Create(() => { _observers.Remove(observer); });
+                        yield return null;
+                        break;
+                    }
+                    case IEffect effect:
+                    {
+                        var ne = InnerEnumerator(RunEffect(effect));
+                        while (ne.MoveNext()) yield return null;
+                        break;
+                    }
+                    default:
+                    {
+                        throw new NotSupportedException($"{current.GetType().Name} is not supported.");
                     }
                 }
-
-                observer.OnNext(_exception);
-                observer.OnCompleted();
-                return Disposable.Empty;
             }
+
+            var childCoroutines = _childCoroutines.ToArray();
+            while (childCoroutines.Any(c => !c.IsCompleted && c.IsCanceled && !c.IsError))
+            {
+                yield return null;
+            }
+
+            _rootCoroutine._childCoroutines.Remove(this);
         }
     }
 }

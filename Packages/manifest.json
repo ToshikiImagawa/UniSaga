@@ -1,15 +1,24 @@
 {
   "scopedRegistries": [
     {
+      "name": "COMCREATE Unity Package Manager Registry",
+      "url": "http://0.0.0.0:4873/",
+      "scopes": [
+        "com.comcreate-info"
+      ]
+    },
+    {
       "name": "package.openupm.com",
       "url": "https://package.openupm.com",
       "scopes": [
-        "com.cysharp.unitask"
+        "com.cysharp.unitask",
+        "net.tnrd.nsubstitute"
       ]
     }
   ],
   "dependencies": {
-    "com.cysharp.unitask": "2.0.36",
+    "com.comcreate-info.uni_redux": "2.0.0",
+    "com.cysharp.unitask": "2.2.5",
     "com.unity.collab-proxy": "1.7.1",
     "com.unity.ide.rider": "2.0.7",
     "com.unity.ide.visualstudio": "2.0.11",
@@ -48,6 +57,7 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0"
+    "com.unity.modules.xr": "1.0.0",
+    "net.tnrd.nsubstitute": "4.2.2"
   }
 }

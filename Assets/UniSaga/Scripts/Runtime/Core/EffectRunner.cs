@@ -1,23 +1,17 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
-using System.Threading;
-using Cysharp.Threading.Tasks;
 using JetBrains.Annotations;
 
 namespace UniSaga.Core
 {
-    internal class EffectRunner<TState> : IDisposable
+    internal class EffectRunner<TState> : IEffectRunner
     {
         [NotNull] private readonly Func<TState> _getState;
         [NotNull] private readonly Func<object, object> _dispatch;
         [NotNull] private readonly IObservable<object> _subject;
-
-        private bool _isDisposed;
-        private readonly object _disposablesLock = new object();
-        [NotNull] private readonly List<IDisposable> _disposables = new List<IDisposable>();
 
         public EffectRunner(
             [NotNull] Func<TState> getState,
@@ -30,233 +24,159 @@ namespace UniSaga.Core
             _subject = subject;
         }
 
-        public async UniTask Run(
-            [NotNull] IEnumerator<IEffect> enumerator,
-            SagaTask sagaTask
-        )
+        public IEnumerator RunEffect(IEffect effect, SagaCoroutine coroutine)
         {
-            if (_isDisposed) return;
-            while (enumerator.MoveNext())
+            return effect switch
             {
-                await Run(enumerator.Current, sagaTask);
-            }
-
-            await UniTask.WaitUntil(sagaTask.TryComplete, cancellationToken: sagaTask.Token);
+                AllEffect allEffect => WaitAllEffect(allEffect, coroutine),
+                RaceEffect raceEffect => WaitRaceEffect(raceEffect, coroutine),
+                CallEffect callEffect => WaitCallEffect(callEffect, coroutine),
+                CancelEffect cancelEffect => RunCancelEffect(cancelEffect, coroutine),
+                SelectEffect selectEffect => RunSelectEffect(selectEffect),
+                PutEffect putEffect => RunPutEffect(putEffect),
+                TakeEffect takeEffect => WaitTakeEffect(takeEffect),
+                ForkEffect forkEffect => RunForkEffect(forkEffect, coroutine),
+                JoinEffect joinEffect => WaitJoinEffect(joinEffect),
+                _ => Enumerator.Empty
+            };
         }
 
-        private async UniTask Run(
-            [CanBeNull] IEffect effect,
-            SagaTask sagaTask
-        )
+        private static IEnumerator WaitAllEffect(AllEffect effect, SagaCoroutine coroutine)
         {
-            sagaTask.Token.ThrowIfCancellationRequested();
-            if (effect == null)
-            {
-                await UniTask.DelayFrame(1, cancellationToken: sagaTask.Token);
-                return;
-            }
+            var coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
+            return Inner();
 
-            switch (effect)
+            IEnumerator Inner()
             {
-                case AllEffect allEffect:
+                while (!coroutines.All(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
                 {
-                    await RunAllEffect(allEffect, sagaTask);
-                    return;
+                    yield return null;
                 }
-                case RaceEffect raceEffect:
+
+                foreach (var sagaCoroutine in coroutines)
                 {
-                    await RunRaceEffect(raceEffect, sagaTask);
-                    return;
-                }
-                case CallEffect callEffect:
-                {
-                    await RunCallEffect(callEffect, sagaTask.Token);
-                    return;
-                }
-                case CancelEffect cancelEffect:
-                {
-                    RunCancelEffect(cancelEffect, sagaTask);
-                    return;
-                }
-                case SelectEffect selectEffect:
-                {
-                    RunSelectEffect(selectEffect);
-                    return;
-                }
-                case PutEffect putEffect:
-                {
-                    RunPutEffect(putEffect);
-                    return;
-                }
-                case TakeEffect takeEffect:
-                {
-                    await RunTakeEffect(takeEffect, sagaTask.Token);
-                    return;
-                }
-                case ForkEffect forkEffect:
-                {
-                    RunForkEffect(forkEffect, sagaTask);
-                    return;
-                }
-                case JoinEffect joinEffect:
-                {
-                    await RunJoinEffect(joinEffect, sagaTask.Token);
-                    return;
+                    sagaCoroutine.RequestCancel();
                 }
             }
         }
 
-        private async UniTask RunAllEffect(IEffect effect, SagaTask parentSagaTask)
+        private static IEnumerator WaitRaceEffect(RaceEffect effect, SagaCoroutine coroutine)
         {
-            var tasks = ConvertEffectsTasks(effect, parentSagaTask);
-            await UniTask
-                .WhenAll(tasks)
-                .WithCancellation(parentSagaTask.Token);
+            var coroutines = ConvertEffectCoroutines(effect.EffectDescriptor, coroutine);
+            return Inner();
+
+            IEnumerator Inner()
+            {
+                while (!coroutines.Any(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
+                {
+                    yield return null;
+                }
+
+                foreach (var c in coroutines)
+                {
+                    c.RequestCancel();
+                }
+            }
         }
 
-        private UniTask[] ConvertEffectsTasks(
-            IEffect effect,
-            SagaTask parentSagaTask,
-            ICollection<CancellationTokenSource> sources = null
+        private static SagaCoroutine[] ConvertEffectCoroutines(
+            CombinatorEffectDescriptor descriptor,
+            SagaCoroutine coroutine
         )
         {
-            if (!effect.Combinator) return Array.Empty<UniTask>();
-            if (!(effect.Payload is ICombinatorEffectDescriptor descriptor)) throw new InvalidOperationException();
-
-            var tasks = descriptor.Effects.Select(async payloadEffect =>
+            var coroutines = descriptor.Effects.Select(payloadEffect =>
             {
-                using var forkCts = new CancellationTokenSource();
-                var sagaTask = new SagaTask(forkCts, parentSagaTask);
-                AddDisposable(forkCts);
-                sources?.Add(forkCts);
+                return coroutine.StartCoroutine(InnerCoroutine());
 
-                try
+                IEnumerator InnerCoroutine()
                 {
-                    await Run(payloadEffect, sagaTask);
-                }
-                catch (Exception e)
-                {
-                    sagaTask.SetError(e);
-                }
-                finally
-                {
-                    RemoveDisposable(forkCts);
-                    sources?.Remove(forkCts);
+                    yield return payloadEffect;
                 }
             }).ToArray();
-            return tasks;
+            return coroutines;
         }
 
-        private async UniTask RunRaceEffect(IEffect effect, SagaTask parentSagaTask)
+        private static IEnumerator WaitCallEffect(CallEffect effect, SagaCoroutine coroutine)
         {
-            var sources = new List<CancellationTokenSource>();
-            var tasks = ConvertEffectsTasks(effect, parentSagaTask, sources);
-            await UniTask
-                .WhenAny(tasks)
-                .WithCancellation(parentSagaTask.Token);
-            foreach (var source in sources.ToArray())
+            var descriptor = effect.EffectDescriptor;
+            var args = new[] { (object)coroutine }.Concat(descriptor.Args).ToArray();
+
+            return Inner();
+
+            IEnumerator Inner()
             {
-                source.Cancel();
+                yield return descriptor.Fn(args);
             }
         }
 
-        private static async UniTask RunCallEffect(CallEffect effect, CancellationToken token)
+        private static IEnumerator RunCancelEffect(CancelEffect effect, SagaCoroutine sagaCoroutine)
         {
-            var value = await effect.Payload.Fn(effect.Payload.Args, token);
-            effect.Payload.SetResultValue?.Invoke(value);
+            var descriptor = effect.EffectDescriptor;
+            var coroutine = descriptor.Coroutine ?? sagaCoroutine;
+            coroutine.RequestCancel();
+            return Enumerator.Empty;
         }
 
-        private static void RunCancelEffect(CancelEffect effect, SagaTask sagaTask)
+        private IEnumerator RunSelectEffect(SelectEffect effect)
         {
-            var task = effect.Payload.Task ?? sagaTask;
-            task.Cancel();
+            var descriptor = effect.EffectDescriptor;
+            var value = descriptor.Selector(_getState(), descriptor.Args);
+            descriptor.SetResultValue(value);
+            return Enumerator.Empty;
         }
 
-        private void RunSelectEffect(SelectEffect effect)
+        private IEnumerator RunPutEffect(PutEffect effect)
         {
-            var value = effect.Payload.Selector(_getState(), effect.Payload.Args);
-            effect.Payload.SetResultValue(value);
+            var descriptor = effect.EffectDescriptor;
+            _dispatch(descriptor.Action);
+            return Enumerator.Empty;
         }
 
-        private void RunPutEffect(PutEffect effect)
+        private IEnumerator WaitTakeEffect(TakeEffect effect)
         {
-            _dispatch(effect.Payload.Action);
-        }
+            var descriptor = effect.EffectDescriptor;
+            var isTaken = false;
+            var disposable = _subject
+                .Where(descriptor.Pattern)
+                .Subscribe(new SimpleObserver<object>(_ => { isTaken = true; }));
+            return Inner();
 
-        private async UniTask RunTakeEffect(TakeEffect effect, CancellationToken token)
-        {
-            await _subject.Where(effect.Payload.Pattern).ToUniTask(true, token);
-        }
-
-        private async void RunForkEffect(ForkEffect effect, SagaTask parentSagaTask)
-        {
-            if (!(effect.Payload.Context is InternalSaga saga)) throw new InvalidOperationException();
-            using var forkCts = new CancellationTokenSource();
-            var sagaTask = new SagaTask(forkCts, parentSagaTask);
-            AddDisposable(forkCts);
-            effect.Payload.SetResultValue?.Invoke(sagaTask);
-            try
+            IEnumerator Inner()
             {
-                await Run(saga(effect.Payload.Args), sagaTask);
-            }
-            catch (Exception e)
-            {
-                sagaTask.SetError(e);
-            }
-            finally
-            {
-                RemoveDisposable(forkCts);
+                using (disposable)
+                {
+                    while (!isTaken) yield return null;
+                }
             }
         }
 
-        private static async UniTask RunJoinEffect(JoinEffect effect, CancellationToken token)
+        private static IEnumerator RunForkEffect(ForkEffect effect, SagaCoroutine sagaCoroutine)
         {
-            if (!(effect.Payload.Context is SagaTask sagaTask)) throw new InvalidOperationException();
-            await UniTask.WaitUntil(() => sagaTask.IsCompleted, cancellationToken: token);
+            var descriptor = effect.EffectDescriptor;
+            var saga = descriptor.InternalSaga;
+            var coroutine = sagaCoroutine.StartCoroutine(saga(descriptor.Args));
+            descriptor.SetResultValue?.Invoke(coroutine);
+            return Enumerator.Empty;
         }
 
-        public void Dispose()
+        private static IEnumerator WaitJoinEffect(JoinEffect effect)
         {
-            if (_isDisposed) return;
-            _isDisposed = true;
-            foreach (var disposable in GetDisposables())
+            var descriptor = effect.EffectDescriptor;
+            var coroutine = descriptor.SagaCoroutine;
+            return Inner();
+
+            IEnumerator Inner()
             {
-                disposable?.Dispose();
+                while (!coroutine.IsCompleted && !coroutine.IsCanceled && !coroutine.IsError)
+                {
+                    yield return null;
+                }
             }
         }
+    }
 
-        private void AddDisposable(IDisposable disposable)
-        {
-            if (_isDisposed)
-            {
-                disposable?.Dispose();
-                return;
-            }
-
-            lock (_disposablesLock)
-            {
-                _disposables.Add(disposable);
-            }
-        }
-
-        private void RemoveDisposable(IDisposable disposable)
-        {
-            lock (_disposablesLock)
-            {
-                _disposables.Remove(disposable);
-            }
-        }
-
-        private IEnumerable<IDisposable> GetDisposables()
-        {
-            IDisposable[] disposables;
-            lock (_disposablesLock)
-            {
-                disposables = _disposables.ToArray();
-                _disposables.Clear();
-            }
-
-            return disposables;
-        }
+    internal interface IEffectRunner
+    {
+        IEnumerator RunEffect(IEffect effect, SagaCoroutine coroutine);
     }
 }

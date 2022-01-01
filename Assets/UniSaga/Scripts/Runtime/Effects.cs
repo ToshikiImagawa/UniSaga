@@ -1,9 +1,8 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
+using System.Collections;
 using System.Linq;
-using System.Threading;
-using Cysharp.Threading.Tasks;
 using UniSaga.Core;
 
 namespace UniSaga
@@ -13,17 +12,7 @@ namespace UniSaga
         #region Call
 
         public static IEffect Call(
-            Func<object[], CancellationToken, UniTask> function,
-            params object[] args
-        )
-        {
-            if (function == null) throw new InvalidOperationException(nameof(function));
-            if (args == null) throw new InvalidOperationException(nameof(args));
-            return CallEffectCreator.Create(function, args);
-        }
-
-        public static IEffect Call(
-            Func<CancellationToken, UniTask> function
+            Func<SagaCoroutine, IEnumerator> function
         )
         {
             if (function == null) throw new InvalidOperationException(nameof(function));
@@ -31,7 +20,7 @@ namespace UniSaga
         }
 
         public static IEffect Call<TArgument>(
-            Func<TArgument, CancellationToken, UniTask> function,
+            Func<TArgument, SagaCoroutine, IEnumerator> function,
             TArgument arg
         )
         {
@@ -39,63 +28,31 @@ namespace UniSaga
             return CallEffectCreator.Create(function, arg);
         }
 
-        public static IEffect Call<TReturnData>(
-            Func<object[], CancellationToken, UniTask<TReturnData>> function,
-            ReturnData<TReturnData> returnData = null,
-            params object[] args
+        public static IEffect Call<TArgument1, TArgument2>(
+            Func<TArgument1, TArgument2, SagaCoroutine, IEnumerator> function,
+            TArgument1 arg1, TArgument2 arg2
         )
         {
             if (function == null) throw new InvalidOperationException(nameof(function));
-            if (args == null) throw new InvalidOperationException(nameof(args));
-            return CallEffectCreator<TReturnData>.Create(function, args, returnData);
+            return CallEffectCreator.Create(function, arg1, arg2);
         }
 
-        public static IEffect Call<TReturnData>(
-            Func<CancellationToken, UniTask<TReturnData>> function,
-            ReturnData<TReturnData> returnData = null
+        public static IEffect Call<TArgument1, TArgument2, TArgument3>(
+            Func<TArgument1, TArgument2, TArgument3, SagaCoroutine, IEnumerator> function,
+            TArgument1 arg1, TArgument2 arg2, TArgument3 arg3
         )
         {
             if (function == null) throw new InvalidOperationException(nameof(function));
-            return CallEffectCreator<TReturnData>.Create(function, returnData);
-        }
-
-        public static IEffect Call<TArgument, TReturnData>(
-            Func<TArgument, CancellationToken, UniTask<TReturnData>> function,
-            TArgument arg,
-            ReturnData<TReturnData> returnData = null
-        )
-        {
-            if (function == null) throw new InvalidOperationException(nameof(function));
-            return CallEffectCreator<TReturnData>.Create(function, arg, returnData);
-        }
-
-        public static IEffect Call<TArgument1, TArgument2, TReturnData>(
-            Func<TArgument1, TArgument2, CancellationToken, UniTask<TReturnData>> function,
-            TArgument1 arg1, TArgument2 arg2,
-            ReturnData<TReturnData> returnData = null
-        )
-        {
-            if (function == null) throw new InvalidOperationException(nameof(function));
-            return CallEffectCreator<TReturnData>.Create(function, arg1, arg2, returnData);
-        }
-
-        public static IEffect Call<TArgument1, TArgument2, TArgument3, TReturnData>(
-            Func<TArgument1, TArgument2, TArgument3, CancellationToken, UniTask<TReturnData>> function,
-            TArgument1 arg1, TArgument2 arg2, TArgument3 arg3,
-            ReturnData<TReturnData> returnData = null
-        )
-        {
-            if (function == null) throw new InvalidOperationException(nameof(function));
-            return CallEffectCreator<TReturnData>.Create(function, arg1, arg2, arg3, returnData);
+            return CallEffectCreator.Create(function, arg1, arg2, arg3);
         }
 
         #endregion
 
         #region Cancel
 
-        public static IEffect Cancel(SagaTask task = null)
+        public static IEffect Cancel(SagaCoroutine coroutine = null)
         {
-            return CancelEffectCreator.Create(task);
+            return CancelEffectCreator.Create(coroutine);
         }
 
         #endregion
@@ -183,7 +140,7 @@ namespace UniSaga
 
         #region Fork
 
-        public static IEffect Fork(Saga saga, ReturnData<SagaTask> returnData = null)
+        public static IEffect Fork(Saga saga, ReturnData<SagaCoroutine> returnData = null)
         {
             return Fork(_ => saga(), returnData, Array.Empty<object>());
         }
@@ -191,7 +148,7 @@ namespace UniSaga
         public static IEffect Fork<TArgument>(
             Saga<TArgument> saga,
             TArgument argument,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return Fork(args => saga((TArgument)args[0]), returnData, argument);
@@ -201,7 +158,7 @@ namespace UniSaga
             Saga<TArgument1, TArgument2> saga,
             TArgument1 argument1,
             TArgument2 argument2,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return Fork(
@@ -220,7 +177,7 @@ namespace UniSaga
             TArgument1 argument1,
             TArgument2 argument2,
             TArgument3 argument3,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return Fork(
@@ -238,7 +195,7 @@ namespace UniSaga
 
         internal static IEffect Fork(
             InternalSaga saga,
-            ReturnData<SagaTask> returnData = null,
+            ReturnData<SagaCoroutine> returnData = null,
             params object[] arguments)
         {
             if (saga == null) throw new InvalidOperationException(nameof(saga));
@@ -249,10 +206,10 @@ namespace UniSaga
 
         #region Join
 
-        public static IEffect Join(SagaTask sagaTask)
+        public static IEffect Join(SagaCoroutine sagaCoroutine)
         {
-            if (sagaTask == null) throw new InvalidOperationException(nameof(sagaTask));
-            return JoinEffectCreator.Create(sagaTask);
+            if (sagaCoroutine == null) throw new InvalidOperationException(nameof(sagaCoroutine));
+            return JoinEffectCreator.Create(sagaCoroutine);
         }
 
         #endregion
@@ -262,7 +219,7 @@ namespace UniSaga
         public static IEffect TakeEvery(
             Func<object, bool> pattern,
             Saga worker,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeEvery(
@@ -277,7 +234,7 @@ namespace UniSaga
             Func<object, bool> pattern,
             Saga<TArgument> worker,
             TArgument argument,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeEvery(
@@ -295,7 +252,7 @@ namespace UniSaga
             Saga<TArgument1, TArgument2> worker,
             TArgument1 argument1,
             TArgument2 argument2,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeEvery(
@@ -316,7 +273,7 @@ namespace UniSaga
             TArgument1 argument1,
             TArgument2 argument2,
             TArgument3 argument3,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeEvery(
@@ -336,7 +293,7 @@ namespace UniSaga
         private static IEffect TakeEvery(
             Func<object, bool> pattern,
             InternalSaga worker,
-            ReturnData<SagaTask> returnData = null,
+            ReturnData<SagaCoroutine> returnData = null,
             params object[] arguments
         )
         {
@@ -363,7 +320,7 @@ namespace UniSaga
         public static IEffect TakeLatest(
             Func<object, bool> pattern,
             Saga worker,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeLatest(
@@ -378,7 +335,7 @@ namespace UniSaga
             Func<object, bool> pattern,
             Saga<TArgument> worker,
             TArgument argument,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeLatest(
@@ -396,7 +353,7 @@ namespace UniSaga
             Saga<TArgument1, TArgument2> worker,
             TArgument1 argument1,
             TArgument2 argument2,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeLatest(
@@ -417,7 +374,7 @@ namespace UniSaga
             TArgument1 argument1,
             TArgument2 argument2,
             TArgument3 argument3,
-            ReturnData<SagaTask> returnData = null
+            ReturnData<SagaCoroutine> returnData = null
         )
         {
             return TakeLatest(
@@ -437,7 +394,7 @@ namespace UniSaga
         private static IEffect TakeLatest(
             Func<object, bool> pattern,
             InternalSaga worker,
-            ReturnData<SagaTask> returnData = null,
+            ReturnData<SagaCoroutine> returnData = null,
             params object[] arguments
         )
         {
@@ -483,12 +440,41 @@ namespace UniSaga
 
         public static IEffect Delay(int millisecondsDelay)
         {
-            return Call(async token => { await UniTask.Delay(millisecondsDelay, cancellationToken: token); });
+            return Call(InnerCoroutine, millisecondsDelay);
+
+            static IEnumerator InnerCoroutine(int millisecondsDelay, SagaCoroutine coroutine)
+            {
+                if (millisecondsDelay < 0)
+                {
+                    coroutine.SetError(new ArgumentOutOfRangeException(
+                        $"Delay does not allow minus {nameof(millisecondsDelay)}. {nameof(millisecondsDelay)}:{millisecondsDelay}"
+                    ));
+                    yield break;
+                }
+
+                yield return new UnityEngine.WaitForSeconds(millisecondsDelay / 1000f);
+            }
         }
 
         public static IEffect DelayFrame(int delayFrameCount)
         {
-            return Call(async token => { await UniTask.DelayFrame(delayFrameCount, cancellationToken: token); });
+            return Call(InnerCoroutine, delayFrameCount);
+
+            static IEnumerator InnerCoroutine(int delayFrameCount, SagaCoroutine sagaCoroutine)
+            {
+                if (delayFrameCount < 0)
+                {
+                    sagaCoroutine.SetError(new ArgumentOutOfRangeException(
+                        $"Delay does not allow minus {nameof(delayFrameCount)}. {nameof(delayFrameCount)}:{delayFrameCount}"
+                    ));
+                    yield break;
+                }
+
+                for (var i = 0; i < delayFrameCount; i++)
+                {
+                    yield return null;
+                }
+            }
         }
 
         #endregion

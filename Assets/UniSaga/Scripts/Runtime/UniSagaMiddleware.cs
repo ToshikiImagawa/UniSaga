@@ -1,9 +1,6 @@
 // Copyright @2021 COMCREATE. All rights reserved.
 
 using System;
-using System.Collections.Generic;
-using System.Threading;
-using JetBrains.Annotations;
 using UniRedux;
 using UniSaga.Core;
 
@@ -14,7 +11,6 @@ namespace UniSaga
         private Func<TState> _getState;
         private Func<object, object> _dispatch;
         private readonly Subject<object> _subject = new Subject<object>();
-        private readonly CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 
         public Func<Dispatcher, Dispatcher> Middleware(IStore<TState> store)
         {
@@ -27,12 +23,12 @@ namespace UniSaga
             };
         }
 
-        public SagaTask Run(Saga rootSaga)
+        public SagaCoroutine Run(Saga rootSaga)
         {
             return Run(_ => rootSaga());
         }
 
-        public SagaTask Run<TArgument>(
+        public SagaCoroutine Run<TArgument>(
             Saga<TArgument> rootSaga,
             TArgument argument
         )
@@ -40,7 +36,7 @@ namespace UniSaga
             return Run(args => rootSaga((TArgument)args[0]), argument);
         }
 
-        public SagaTask Run<TArgument1, TArgument2>(
+        public SagaCoroutine Run<TArgument1, TArgument2>(
             Saga<TArgument1, TArgument2> rootSaga,
             TArgument1 argument1,
             TArgument2 argument2
@@ -56,7 +52,7 @@ namespace UniSaga
             );
         }
 
-        public SagaTask Run<TArgument1, TArgument2, TArgument3>(
+        public SagaCoroutine Run<TArgument1, TArgument2, TArgument3>(
             Saga<TArgument1, TArgument2, TArgument3> rootSaga,
             TArgument1 argument1,
             TArgument2 argument2,
@@ -75,41 +71,20 @@ namespace UniSaga
             );
         }
 
-        private SagaTask Run(InternalSaga rootSaga, params object[] arguments)
+        private SagaCoroutine Run(InternalSaga rootSaga, params object[] arguments)
         {
             if (rootSaga == null) throw new InvalidOperationException();
             if (_getState == null) throw new InvalidOperationException();
             if (_dispatch == null) throw new InvalidOperationException();
-            if (_cancellationTokenSource.Token.IsCancellationRequested) return null;
-            var sagaTask = new SagaTask(_cancellationTokenSource);
-            Run(
-                _getState,
-                _dispatch,
-                _subject,
-                sagaTask,
+            return SagaCoroutine.StartCoroutine(
+                new EffectRunner<TState>(_getState, _dispatch, _subject),
                 rootSaga(arguments ?? Array.Empty<object>())
             );
-            return sagaTask;
         }
 
         public void Dispose()
         {
             _subject?.Dispose();
-        }
-
-        private static async void Run(
-            [NotNull] Func<TState> getState,
-            [NotNull] Func<object, object> dispatch,
-            [NotNull] IObservable<object> subject,
-            [NotNull] SagaTask sagaTask,
-            IEnumerator<IEffect> effects
-        )
-        {
-            using var runner = new EffectRunner<TState>(getState, dispatch, subject);
-            await runner.Run(
-                effects,
-                sagaTask
-            );
         }
     }
 
