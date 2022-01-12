@@ -230,6 +230,26 @@ namespace UniSaga
             );
         }
 
+        public static IEffect TakeEvery(
+            Func<object, bool> pattern,
+            Saga<object> worker,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeEvery(
+                action =>
+                {
+                    if (!pattern(action)) return false;
+                    actionReturnData.SetValue(action);
+                    return true;
+                },
+                _ => worker(actionReturnData.Value),
+                returnData,
+                Array.Empty<object>()
+            );
+        }
+
         public static IEffect TakeEvery<TArgument>(
             Func<object, bool> pattern,
             Saga<TArgument> worker,
@@ -326,6 +346,26 @@ namespace UniSaga
             return TakeLatest(
                 pattern,
                 _ => worker(),
+                returnData,
+                Array.Empty<object>()
+            );
+        }
+
+        public static IEffect TakeLatest(
+            Func<object, bool> pattern,
+            Saga<object> worker,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeLatest(
+                action =>
+                {
+                    if (!pattern(action)) return false;
+                    actionReturnData.SetValue(action);
+                    return true;
+                },
+                _ => worker(actionReturnData.Value),
                 returnData,
                 Array.Empty<object>()
             );
