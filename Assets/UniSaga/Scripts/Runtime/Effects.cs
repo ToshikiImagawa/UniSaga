@@ -129,11 +129,12 @@ namespace UniSaga
         #region Take
 
         public static IEffect Take(
-            Func<object, bool> pattern
+            Func<object, bool> pattern,
+            ReturnData<object> returnData = null
         )
         {
             if (pattern == null) throw new InvalidOperationException(nameof(pattern));
-            return TakeEffectCreator.Create(pattern);
+            return TakeEffectCreator.Create(pattern, returnData);
         }
 
         #endregion
@@ -226,6 +227,23 @@ namespace UniSaga
                 pattern,
                 _ => worker(),
                 returnData,
+                null,
+                Array.Empty<object>()
+            );
+        }
+
+        public static IEffect TakeEvery(
+            Func<object, bool> pattern,
+            Saga<object> worker,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeEvery(
+                pattern,
+                _ => worker(actionReturnData.Value),
+                returnData,
+                actionReturnData,
                 Array.Empty<object>()
             );
         }
@@ -243,6 +261,27 @@ namespace UniSaga
                     (TArgument)args[0]
                 ),
                 returnData,
+                null,
+                argument
+            );
+        }
+
+        public static IEffect TakeEvery<TArgument>(
+            Func<object, bool> pattern,
+            Saga<object, TArgument> worker,
+            TArgument argument,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeEvery(
+                pattern,
+                args => worker(
+                    actionReturnData.Value,
+                    (TArgument)args[0]
+                ),
+                returnData,
+                actionReturnData,
                 argument
             );
         }
@@ -262,6 +301,30 @@ namespace UniSaga
                     (TArgument2)args[1]
                 ),
                 returnData,
+                null,
+                argument1,
+                argument2
+            );
+        }
+
+        public static IEffect TakeEvery<TArgument1, TArgument2>(
+            Func<object, bool> pattern,
+            Saga<object, TArgument1, TArgument2> worker,
+            TArgument1 argument1,
+            TArgument2 argument2,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeEvery(
+                pattern,
+                args => worker(
+                    actionReturnData.Value,
+                    (TArgument1)args[0],
+                    (TArgument2)args[1]
+                ),
+                returnData,
+                actionReturnData,
                 argument1,
                 argument2
             );
@@ -284,6 +347,33 @@ namespace UniSaga
                     (TArgument3)args[2]
                 ),
                 returnData,
+                null,
+                argument1,
+                argument2,
+                argument3
+            );
+        }
+
+        public static IEffect TakeEvery<TArgument1, TArgument2, TArgument3>(
+            Func<object, bool> pattern,
+            Saga<object, TArgument1, TArgument2, TArgument3> worker,
+            TArgument1 argument1,
+            TArgument2 argument2,
+            TArgument3 argument3,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeEvery(
+                pattern,
+                args => worker(
+                    actionReturnData.Value,
+                    (TArgument1)args[0],
+                    (TArgument2)args[1],
+                    (TArgument3)args[2]
+                ),
+                returnData,
+                null,
                 argument1,
                 argument2,
                 argument3
@@ -294,6 +384,7 @@ namespace UniSaga
             Func<object, bool> pattern,
             InternalSaga worker,
             ReturnData<SagaCoroutine> returnData = null,
+            ReturnData<object> returnActionData = null,
             params object[] arguments
         )
         {
@@ -307,7 +398,7 @@ namespace UniSaga
             }
 
             return ForkEffectCreator.Create(
-                EffectHelper.TakeEveryHelper,
+                args => EffectHelper.TakeEveryHelper(args, returnActionData),
                 returnData,
                 innerArgs
             );
@@ -327,6 +418,23 @@ namespace UniSaga
                 pattern,
                 _ => worker(),
                 returnData,
+                null,
+                Array.Empty<object>()
+            );
+        }
+
+        public static IEffect TakeLatest(
+            Func<object, bool> pattern,
+            Saga<object> worker,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeLatest(
+                pattern,
+                _ => worker(actionReturnData.Value),
+                returnData,
+                actionReturnData,
                 Array.Empty<object>()
             );
         }
@@ -344,6 +452,27 @@ namespace UniSaga
                     (TArgument)args[0]
                 ),
                 returnData,
+                null,
+                argument
+            );
+        }
+
+        public static IEffect TakeLatest<TArgument>(
+            Func<object, bool> pattern,
+            Saga<object, TArgument> worker,
+            TArgument argument,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeLatest(
+                pattern,
+                args => worker(
+                    actionReturnData.Value,
+                    (TArgument)args[0]
+                ),
+                returnData,
+                actionReturnData,
                 argument
             );
         }
@@ -363,6 +492,30 @@ namespace UniSaga
                     (TArgument2)args[1]
                 ),
                 returnData,
+                null,
+                argument1,
+                argument2
+            );
+        }
+
+        public static IEffect TakeLatest<TArgument1, TArgument2>(
+            Func<object, bool> pattern,
+            Saga<object, TArgument1, TArgument2> worker,
+            TArgument1 argument1,
+            TArgument2 argument2,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeLatest(
+                pattern,
+                args => worker(
+                    actionReturnData.Value,
+                    (TArgument1)args[0],
+                    (TArgument2)args[1]
+                ),
+                returnData,
+                actionReturnData,
                 argument1,
                 argument2
             );
@@ -385,6 +538,33 @@ namespace UniSaga
                     (TArgument3)args[2]
                 ),
                 returnData,
+                null,
+                argument1,
+                argument2,
+                argument3
+            );
+        }
+
+        public static IEffect TakeLatest<TArgument1, TArgument2, TArgument3>(
+            Func<object, bool> pattern,
+            Saga<object, TArgument1, TArgument2, TArgument3> worker,
+            TArgument1 argument1,
+            TArgument2 argument2,
+            TArgument3 argument3,
+            ReturnData<SagaCoroutine> returnData = null
+        )
+        {
+            var actionReturnData = new ReturnData<object>();
+            return TakeLatest(
+                pattern,
+                args => worker(
+                    actionReturnData.Value,
+                    (TArgument1)args[0],
+                    (TArgument2)args[1],
+                    (TArgument3)args[2]
+                ),
+                returnData,
+                actionReturnData,
                 argument1,
                 argument2,
                 argument3
@@ -395,6 +575,7 @@ namespace UniSaga
             Func<object, bool> pattern,
             InternalSaga worker,
             ReturnData<SagaCoroutine> returnData = null,
+            ReturnData<object> returnActionData = null,
             params object[] arguments
         )
         {
@@ -408,7 +589,7 @@ namespace UniSaga
             }
 
             return ForkEffectCreator.Create(
-                EffectHelper.TakeLatestHelper,
+                args => EffectHelper.TakeLatestHelper(args, returnActionData),
                 returnData,
                 innerArgs
             );

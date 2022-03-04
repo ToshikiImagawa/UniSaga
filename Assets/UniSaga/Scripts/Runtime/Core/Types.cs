@@ -103,12 +103,17 @@ namespace UniSaga.Core
 
         public class Descriptor
         {
-            public Descriptor(Func<object, bool> pattern)
+            public Descriptor(
+                Func<object, bool> pattern,
+                [NotNull] Action<object> setResultValue
+            )
             {
                 Pattern = pattern;
+                SetResultValue = setResultValue;
             }
 
             public Func<object, bool> Pattern { get; }
+            [NotNull] public Action<object> SetResultValue { get; }
         }
     }
 

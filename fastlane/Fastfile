@@ -1,0 +1,23 @@
+import 'lanes.rb'
+
+skip_docs # skip generate fastlane README.md
+
+before_all do |lane, options|
+  unity_set_parameters(lane_context, options, UNITY_BUILD_PARAMS)
+  FastlaneCore::PrintTable.print_values(config: lane_context, hide_keys: [], title: "Build Configuration")
+end
+
+error do |lane, exception, options|
+  if is_ci?
+    p "error #{lane}: #{exception}"
+  end
+end
+
+after_all do |lane, options|
+
+end
+
+desc "[STDIC for Unity] Release Unity"
+lane :release_unity do |options|
+  lane_release_unity(lane_context)
+end

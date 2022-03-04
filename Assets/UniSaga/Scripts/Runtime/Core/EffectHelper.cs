@@ -3,12 +3,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 
 namespace UniSaga.Core
 {
     internal static class EffectHelper
     {
-        public static IEnumerator<IEffect> TakeLatestHelper(object[] arguments)
+        public static IEnumerator<IEffect> TakeLatestHelper(
+            [NotNull] object[] arguments,
+            [CanBeNull] ReturnData<object> returnActionData
+        )
         {
             if (arguments.Length < 2) throw new InvalidOperationException("Not enough arguments.");
             var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException(
@@ -44,7 +48,7 @@ namespace UniSaga.Core
 
             IEffect YTake()
             {
-                return Effects.Take(pattern);
+                return Effects.Take(pattern, returnActionData);
             }
 
             IEffect YFork()
@@ -63,7 +67,10 @@ namespace UniSaga.Core
             }
         }
 
-        public static IEnumerator<IEffect> TakeEveryHelper(object[] arguments)
+        public static IEnumerator<IEffect> TakeEveryHelper(
+            [NotNull] object[] arguments,
+            [CanBeNull] ReturnData<object> returnActionData
+        )
         {
             if (arguments.Length < 2) throw new InvalidOperationException("Not enough arguments.");
             var pattern = arguments[0] as Func<object, bool> ?? throw new InvalidOperationException(
@@ -88,12 +95,12 @@ namespace UniSaga.Core
 
             IEffect YTake()
             {
-                return TakeEffectCreator.Create(pattern);
+                return Effects.Take(pattern, returnActionData);
             }
 
             IEffect YFork()
             {
-                return ForkEffectCreator.Create(worker, null, workerArgs);
+                return Effects.Fork(worker, null, workerArgs);
             }
         }
 

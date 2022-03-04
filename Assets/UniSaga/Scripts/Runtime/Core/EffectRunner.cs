@@ -48,7 +48,8 @@ namespace UniSaga.Core
 
             IEnumerator Inner()
             {
-                while (!coroutines.All(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
+                while (!coroutines.All(sagaCoroutine =>
+                           sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
                 {
                     yield return null;
                 }
@@ -67,7 +68,8 @@ namespace UniSaga.Core
 
             IEnumerator Inner()
             {
-                while (!coroutines.Any(sagaCoroutine => sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
+                while (!coroutines.Any(sagaCoroutine =>
+                           sagaCoroutine.IsCompleted || sagaCoroutine.IsCanceled || sagaCoroutine.IsError))
                 {
                     yield return null;
                 }
@@ -137,7 +139,16 @@ namespace UniSaga.Core
             var descriptor = effect.EffectDescriptor;
             var isTaken = false;
             var disposable = _subject
-                .Where(descriptor.Pattern)
+                .Where(action =>
+                {
+                    var take = descriptor.Pattern(action);
+                    if (take)
+                    {
+                        descriptor.SetResultValue(action);
+                    }
+
+                    return take;
+                })
                 .Subscribe(new SimpleObserver<object>(_ => { isTaken = true; }));
             return Inner();
 
