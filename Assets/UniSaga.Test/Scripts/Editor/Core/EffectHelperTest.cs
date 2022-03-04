@@ -17,7 +17,7 @@ namespace UniSaga.Test.Core
         public void TakeLatestHelper(TakeLatestHelperTestCase testCase)
         {
             // setup
-            var e = EffectHelper.TakeLatestHelper(testCase.Args);
+            var e = EffectHelper.TakeLatestHelper(testCase.Args, null);
             object[] forkArgs = null;
             InternalSaga forkInternalSaga = null;
             Func<object, bool> takePattern = null;
@@ -124,7 +124,7 @@ namespace UniSaga.Test.Core
         public void TakeEveryHelper(TakeEveryHelperTestCase testCase)
         {
             // setup
-            var e = EffectHelper.TakeEveryHelper(testCase.Args);
+            var e = EffectHelper.TakeEveryHelper(testCase.Args, null);
             object[] forkArgs = null;
             InternalSaga forkInternalSaga = null;
             Func<object, bool> takePattern = null;
@@ -222,7 +222,7 @@ namespace UniSaga.Test.Core
             // execute
             void TestDelegate()
             {
-                EffectHelper.TakeLatestHelper(testCase.Args);
+                EffectHelper.TakeLatestHelper(testCase.Args, null);
             }
 
             // verify
@@ -237,7 +237,7 @@ namespace UniSaga.Test.Core
             // execute
             void TestDelegate()
             {
-                EffectHelper.TakeEveryHelper(testCase.Args);
+                EffectHelper.TakeEveryHelper(testCase.Args, null);
             }
 
             // verify

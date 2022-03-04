@@ -255,10 +255,11 @@ namespace UniSaga.Core
     internal static class TakeEffectCreator
     {
         public static TakeEffect Create(
-            [NotNull] Func<object, bool> pattern
+            [NotNull] Func<object, bool> pattern,
+            [CanBeNull] ReturnData<object> returnData
         )
         {
-            return new TakeEffect(new TakeEffect.Descriptor(pattern));
+            return new TakeEffect(new TakeEffect.Descriptor(pattern, action => { returnData?.SetValue(action); }));
         }
     }
 

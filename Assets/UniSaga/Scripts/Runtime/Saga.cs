@@ -25,6 +25,12 @@ namespace UniSaga
         TArgument2 argument2,
         TArgument3 argument3
     );
+    public delegate IEnumerator Saga<in TArgument1, in TArgument2, in TArgument3, in TArgument4>(
+        TArgument1 argument1,
+        TArgument2 argument2,
+        TArgument3 argument3,
+        TArgument4 argument4
+    );
 
     public class SagaCoroutine : IPlayerLoopItem
     {
