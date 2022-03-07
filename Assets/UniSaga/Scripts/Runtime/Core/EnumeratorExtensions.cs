@@ -54,7 +54,7 @@ namespace UniSaga.Core
                     case IEnumerator e:
                     {
                         var ne = e.Flat();
-                        while (ne.MoveNext()) yield return null;
+                        while (ne.MoveNext()) yield return ne.Current;
                         break;
                     }
                     default:
